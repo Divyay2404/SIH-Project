@@ -1,0 +1,3 @@
+@echo off
+echo Starting Vite React Frontend Server...
+npm run dev

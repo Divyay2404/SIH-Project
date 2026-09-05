@@ -1,0 +1,81 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+
+:root {
+  --font-heading: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: radial-gradient(circle at top left, #0f172a 0%, #020617 100%);
+  min-height: 100vh;
+  color: #f8fafc;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Glassmorphism styling */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-glow {
+  background: rgba(30, 41, 59, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+}
+
+/* Bounding box orange pulse animation */
+@keyframes bbox-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.8);
+    background-color: rgba(249, 115, 22, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(249, 115, 22, 0.3);
+    background-color: rgba(249, 115, 22, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+    background-color: rgba(249, 115, 22, 0.25);
+  }
+}
+
+.bbox-highlight {
+  position: absolute;
+  border: 2px solid #f97316;
+  border-radius: 4px;
+  animation: bbox-pulse 2s infinite ease-in-out;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
+}
