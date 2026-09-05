@@ -162,3 +162,4 @@ This backlog provides 12 ready-to-copy GitHub issues formatted for immediate ass
   - [ ] Formatted double-column academic layout with header, course metadata, key definitions, and practice questions (2/5/10 marks).
   - [ ] Generates clean printable PDF without text clipping or overlapping elements.
   - [ ] Stress-tested against multi-page outputs.
+
