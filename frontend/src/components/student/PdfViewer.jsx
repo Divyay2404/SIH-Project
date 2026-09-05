@@ -1,7 +1,7 @@
 import React from 'react';
-import { FileText, Target, Sparkles, CheckCircle2, Eye } from 'lucide-react';
+import { FileText, Target, Sparkles, CheckCircle2, Eye, X } from 'lucide-react';
 
-export default function PdfViewer({ activeCitation, selectedPage, setSelectedPage }) {
+export default function PdfViewer({ activeCitation, setActiveCitation, selectedPage, setSelectedPage }) {
   const pagesData = [
     {
       page: 1,
@@ -105,10 +105,10 @@ export default function PdfViewer({ activeCitation, selectedPage, setSelectedPag
             ))}
           </div>
 
-          {/* Coordinate Bounding Box Overlay Highlight */}
+          {/* Coordinate Bounding Box Overlay Highlight (Only visible when user explicitly clicks a citation) */}
           {activeCitation && activeCitation.page_number === selectedPage && (
             <div
-              className="bbox-highlight transition-all duration-500"
+              className="bbox-highlight transition-all duration-300"
               style={{
                 top: `${activeCitation.bounding_box[1]}px`,
                 left: `${activeCitation.bounding_box[0]}px`,
@@ -116,9 +116,23 @@ export default function PdfViewer({ activeCitation, selectedPage, setSelectedPag
                 height: `${activeCitation.bounding_box[3] - activeCitation.bounding_box[1]}px`,
               }}
             >
-              <div className="absolute -top-7 left-0 bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center gap-1">
-                <Target className="w-3 h-3 animate-spin" />
-                <span>Verified Source Bbox [{activeCitation.bounding_box.join(', ')}]</span>
+              <div className="absolute -top-7 left-0 bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-lg flex items-center justify-between gap-2 min-w-[200px]">
+                <div className="flex items-center gap-1">
+                  <Target className="w-3 h-3 animate-spin" />
+                  <span>Citation Source Bbox [{activeCitation.bounding_box.join(', ')}]</span>
+                </div>
+                {setActiveCitation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveCitation(null);
+                    }}
+                    className="hover:bg-orange-700 p-0.5 rounded text-white"
+                    title="Dismiss highlight"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -130,7 +144,7 @@ export default function PdfViewer({ activeCitation, selectedPage, setSelectedPag
         <div className="flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
           <span className="text-slate-400 text-[11px]">
-            {activeCitation ? "Active Citation: Page " + activeCitation.page_number : "Click citation link in answer to highlight exact PDF bounding box"}
+            {activeCitation ? "Source Highlighted: Page " + activeCitation.page_number : "Click any citation badge in chat to highlight exact PDF bounding box"}
           </span>
         </div>
         <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-semibold">
