@@ -17,7 +17,10 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz  # type: ignore[import-not-found, import-untyped]
+except ImportError:
+    import fitz  # type: ignore[import-not-found, import-untyped]
 from app.ingestion.pdf_parser import OCRFallbackEngine, PDFStructureParser
 
 

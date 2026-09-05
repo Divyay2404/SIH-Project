@@ -11,10 +11,14 @@ import shutil
 from typing import Any, Dict, List, Optional
 
 try:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # type: ignore[import-not-found, import-untyped]
     PYMUPDF_AVAILABLE = True
 except ImportError:
-    PYMUPDF_AVAILABLE = False
+    try:
+        import fitz  # type: ignore[import-not-found, import-untyped]
+        PYMUPDF_AVAILABLE = True
+    except ImportError:
+        PYMUPDF_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
