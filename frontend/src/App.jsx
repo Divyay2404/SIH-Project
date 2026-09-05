@@ -21,8 +21,8 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
-        <p>Smart India Hackathon (SIH) 2026 Prototype Submission | Developed by Team <span className="text-indigo-400 font-semibold">Tech_Warriors</span></p>
+      <footer className="border-t border-slate-900 py-6 text-center text-xs text-slate-500 bg-slate-950/80">
+        <p>StudyForge OS — AI-Powered Adaptive Learning & Content Generation Platform</p>
       </footer>
     </div>
   );
