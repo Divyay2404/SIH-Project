@@ -18,7 +18,13 @@ export default function EducatorConsole() {
       const formData = new FormData();
       formData.append('file', file);
       const response = await fetch('/api/ingest', { method: 'POST', body: formData });
-      const payload = await response.json();
+      const responseText = await response.text();
+      let payload;
+      try {
+        payload = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        payload = { detail: responseText || `Upload service returned ${response.status}.` };
+      }
       if (!response.ok) throw new Error(payload.detail || 'The document could not be ingested.');
       setUploadStatus({
         name: file.name,
@@ -132,22 +138,22 @@ export default function EducatorConsole() {
         <div className="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-8 text-center transition-all bg-slate-950/40 relative">
           <input
             type="file"
-            accept=".pdf"
+            accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             onChange={handleFileUpload}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
           <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-3 border border-indigo-500/20">
             <FolderPlus className="w-6 h-6" />
           </div>
-          <h4 className="text-xs font-semibold text-slate-200">Drop a textbook chapter or syllabus PDF here</h4>
-          <p className="text-[11px] text-slate-400 mt-1">Exports use the text extracted from this PDF, including scanned notes with OCR where available</p>
+          <h4 className="text-xs font-semibold text-slate-200">Drop a textbook chapter, syllabus PDF, or PowerPoint here</h4>
+          <p className="text-[11px] text-slate-400 mt-1">Exports use extracted PDF pages or PowerPoint slide content. Scanned PDFs use OCR where available.</p>
         </div>
 
         {uploadStatus && (
           <div className={`mt-4 p-3.5 rounded-xl flex items-center justify-between text-xs ${uploadStatus.error ? 'bg-red-500/10 border border-red-500/30 text-red-300' : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'}`}>
             <div className="flex items-center gap-2">
               <CheckCircle className={`w-4 h-4 ${uploadStatus.error ? 'text-red-400' : 'text-emerald-400'}`} />
-              <span>{uploadStatus.name} ({uploadStatus.size})</span>
+              <span>{uploadStatus.name}{uploadStatus.size ? ` (${uploadStatus.size})` : ''}</span>
             </div>
             <span className="font-semibold">{uploading ? 'Uploading...' : uploadStatus.error || uploadStatus.status}</span>
           </div>

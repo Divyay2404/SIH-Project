@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Response, UploadFile, File
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
-from app.ingestion.pdf_parser import pdf_parser_engine
+from app.ingestion.document_parser import UnsupportedDocumentError, document_parser
 from app.rag.vector_store import vector_store
 from app.rag.qa_engine import qa_engine
 from app.diagnostics.learner_state import learner_engine
@@ -58,18 +58,18 @@ def process_rag_query(request: RAGQueryRequest):
 async def ingest_document(file: UploadFile = File(...)):
     """Ingests PDF textbook chapter, extracts text & coordinates, and indexes into vector memory."""
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix != ".pdf":
-        raise HTTPException(status_code=400, detail="Educator uploads currently support PDF documents only.")
+    if suffix not in document_parser.SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Supported uploads are PDF, PPTX, and PPT files.")
 
     temp_path = ""
     try:
-        # PyMuPDF needs a file path, so persist only this request's uploaded bytes
-        # to a temporary PDF and remove it immediately after extraction.
+        # Parsers need a file path, so persist only this request's uploaded bytes
+        # to a temporary file and remove it immediately after extraction.
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             temp_path = temp_file.name
             temp_file.write(await file.read())
 
-        chunks = pdf_parser_engine.parse_pdf(temp_path)
+        chunks = document_parser.parse(temp_path)
         if not chunks:
             raise HTTPException(status_code=422, detail="No readable text could be extracted from this document.")
 
@@ -96,7 +96,8 @@ async def ingest_document(file: UploadFile = File(...)):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=500, detail=f"Ingestion failure: {str(e)}")
+        status_code = 422 if isinstance(e, UnsupportedDocumentError) else 500
+        raise HTTPException(status_code=status_code, detail=f"Ingestion failure: {str(e)}")
     finally:
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
@@ -138,7 +139,7 @@ def get_readiness_analytics():
 def _get_export_document(document_id: str) -> Dict[str, Any]:
     document = document_exports.get(document_id)
     if not document:
-        raise HTTPException(status_code=404, detail="Document not found. Upload a PDF before exporting.")
+        raise HTTPException(status_code=404, detail="Document not found. Upload a PDF or PowerPoint file before exporting.")
     return document
 
 
