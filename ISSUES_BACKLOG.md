@@ -1,7 +1,16 @@
 # 📋 SIH 2026 Team Task & GitHub Issues Backlog
 ### Team: Tech_Warriors | Project: StudyCopilot & StudyForge Integration
 
-This backlog provides 12 ready-to-copy GitHub issues formatted for immediate assignment across our **6-Member SIH Team Roles**. Each issue specifies the primary file target, requirement checklist, and technical acceptance criteria.
+This backlog provides 14 ready-to-copy GitHub issues formatted for immediate assignment across our **6-Member SIH Team Roles**. Each issue specifies the primary file target, requirement checklist, and technical acceptance criteria.
+
+---
+
+## 🛡️ Git Merge Conflict Prevention Guidelines
+To prevent **Git merge conflicts** when multiple team members add, update, or resolve backlog issues:
+1. **Append-Only Policy**: Always append new issue definitions at the **bottom** of this file under the `Ready-to-Copy GitHub Issues` section.
+2. **Sequential & Unique Issue Identifiers**: Every issue MUST use a distinct sequential identifier (`Issue #1`, `Issue #2`, ..., `Issue #13`, `Issue #14`). Never re-use or re-number existing issue numbers.
+3. **Isolated Structural Boundaries**: Wrap each issue entry inside self-contained Markdown headers (`### 🔹 Issue #N: ...`) bounded by explicit horizontal rules (`---`). Do not edit preceding issue blocks.
+4. **Non-Overlapping Target File Scopes**: Clearly define primary target file boundaries to avoid conflicting edits across team role branches.
 
 ---
 
@@ -9,12 +18,12 @@ This backlog provides 12 ready-to-copy GitHub issues formatted for immediate ass
 
 | Role | Role Title | Primary Scope | Assigned Backlog Issues |
 |---|---|---|---|
-| **Role 0 (You)** | RAG & Integration Lead | Core RAG pipeline, marks-aware prompts, evidence-or-abstain gate | #1, #2 |
+| **Role 0 (You)** | RAG & Integration Lead | Core RAG pipeline, marks-aware prompts, evidence-or-abstain gate | #1, #2, #14 |
 | **Teammate 1** | Document Intelligence | PyMuPDF parsing, bounding box coordinates, layout cleaning | #3, #4 |
 | **Teammate 2** | Lead Backend Architect | FastAPI REST routing, SQLite learner state, async endpoints | #5, #6 |
 | **Teammate 3** | Student Portal Dev | React split-screen chat console, PDF highlight overlay | #7, #8 |
 | **Teammate 4** | Educator Console Dev | Teacher presentation hub, class weakness heatmap | #9, #10 |
-| **Teammate 5** | Output & QA Engineer | `python-pptx` deck builder, `ReportLab` handouts, stress tests | #11, #12 |
+| **Teammate 5** | Output & QA Engineer | `python-pptx` deck builder, `ReportLab` handouts, stress tests | #11, #12, #13 |
 
 ---
 
@@ -163,3 +172,28 @@ This backlog provides 12 ready-to-copy GitHub issues formatted for immediate ass
   - [ ] Generates clean printable PDF without text clipping or overlapping elements.
   - [ ] Stress-tested against multi-page outputs.
 
+---
+
+### 🔹 Issue #13: Fix Educator Console Upload & Presentation/Handout Content Relevance
+- **Labels**: `bug`, `role:qa-export`, `role:educator-ui`, `backend`, `high-priority`
+- **Target File**: `backend/app/api/routes.py`, `backend/app/generators/ppt_generator.py`, `backend/app/generators/pdf_generator.py`, `frontend/src/components/educator/EducatorConsole.jsx`
+- **Description**:  
+  When an educator uploads any file (e.g. Operating Systems, Chemistry) in Educator Console and triggers "Generate Lecture Deck" or "Export Study Handout", the downloaded PowerPoint and PDF handouts return static hardcoded placeholder content (Binary Search Trees) rather than content extracted from or relevant to the uploaded document.
+- **Acceptance Criteria**:
+  - [ ] Refactor `/api/ingest` in `backend/app/api/routes.py` to stream uploaded file content to `pdf_parser_engine` for real text/outline extraction instead of static fallback data.
+  - [ ] Update `ppt_generator.py` and `pdf_generator.py` to generate presentation slides and PDF study guides dynamically from extracted document outlines and summaries.
+  - [ ] Connect `EducatorConsole.jsx` to bind and send active `document_id` / dynamic topic payload during export API calls.
+  - [ ] Ensure exported files (.pptx and .pdf) accurately reflect the title, key concepts, bullet points, and speaker notes of the uploaded document.
+
+---
+
+### 🔹 Issue #14: Fix Student Portal RAG Query Answer Relevance & Context Scope
+- **Labels**: `bug`, `role:rag-lead`, `role:student-ui`, `backend`, `high-priority`
+- **Target File**: `backend/app/api/routes.py`, `backend/app/rag/qa_engine.py`, `backend/app/rag/vector_store.py`, `frontend/src/components/student/StudentPortal.jsx`
+- **Description**:  
+  In the Student Portal split-screen chat interface, when a student submits a question regarding their uploaded document, the generated response is not relevant to the query or active document. The backend returns off-topic answers or fallback definitions instead of querying the vector database for matching textbook evidence.
+- **Acceptance Criteria**:
+  - [ ] Enforce strict `document_id` scoping in `vector_store.search(query, document_id)` to query embeddings of the active uploaded document.
+  - [ ] Update `StudentPortal.jsx` to send the active `document_id` alongside `question` and `marks` in `/api/query` requests.
+  - [ ] Refactor `qa_engine.py` prompt templates to ground answer generation in retrieved top-k document chunks for 2, 5, and 10 marks responses.
+  - [ ] If top retrieved chunk similarity is below threshold or context is missing, return the verified evidence abstain message.
