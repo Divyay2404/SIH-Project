@@ -13,6 +13,7 @@ It converts static, unstructured curriculum materials (textbooks, scanned notes,
 
 1. **Structure-Aware Ingestion & PDF Highlight Offsets**
    - Extracts page-level coordinates (bounding boxes `[x0, y0, x1, y1]`) alongside text chunks using PyMuPDF.
+   - Includes automatic localized OCR fallback for scanned or non-selectable textbook pages with coordinate preservation.
    - Integrates a responsive split-screen PDF viewer with real-time orange bounding-box highlight overlays when citations are clicked.
 
 2. **Marks-Aware Answer Scaling (2, 5, 10 Marks)**
@@ -57,3 +58,11 @@ cd frontend
 npm run dev
 ```
 Access the application UI at: `http://localhost:5173`
+
+### 3. Optional OCR Setup (For Scanned PDFs)
+To run localized OCR fallback on scanned/image-only PDFs, ensure Tesseract OCR is installed on the host:
+- **Windows**: Install via [UB-Mannheim Tesseract](https://github.com/UB-Mannheim/tesseract/wiki) or `winget install UB-Mannheim.TesseractOCR`.
+- **Linux**: `sudo apt install tesseract-ocr tesseract-ocr-eng`
+- **macOS**: `brew install tesseract tesseract-lang`
+
+*Note: Digital PDFs with selectable text layers parse natively via PyMuPDF without Tesseract.*
