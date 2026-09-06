@@ -9,6 +9,14 @@ from app.generators.ppt_generator import ppt_generator
 from app.generators.pdf_generator import pdf_generator
 
 
+EXPORT_DOCUMENT = {
+    "title": "Operating Systems Scheduling",
+    "chunks": [
+        {"page": 1, "text": "Process Scheduling\nThe scheduler selects a ready process for CPU execution."},
+    ],
+}
+
+
 class TestSIHBackend(unittest.TestCase):
 
     def test_marks_aware_scaling_2_marks(self):
@@ -40,11 +48,15 @@ class TestSIHBackend(unittest.TestCase):
         self.assertIn("30-Minute Rescue Mission", diagnosis["rescue_mission"]["title"])
 
     def test_ppt_export_generator(self):
-        ppt_bytes = ppt_generator.generate_ppt_deck("Binary Search Trees")
+        if not ppt_generator.available:
+            self.skipTest("python-pptx is not installed")
+        ppt_bytes = ppt_generator.generate_ppt_deck(EXPORT_DOCUMENT)
         self.assertGreater(len(ppt_bytes), 0)
 
     def test_pdf_handout_generator(self):
-        pdf_bytes = pdf_generator.generate_handout_pdf("Binary Search Trees")
+        if not pdf_generator.available:
+            self.skipTest("ReportLab is not installed")
+        pdf_bytes = pdf_generator.generate_handout_pdf(EXPORT_DOCUMENT)
         self.assertGreater(len(pdf_bytes), 0)
 
 

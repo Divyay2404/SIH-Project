@@ -4,7 +4,12 @@ Connects UI to PyMuPDF parsing, RAG qa_engine, diagnostic learner_state,
 and PPT/PDF generator modules.
 """
 
-from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Form
+import os
+import tempfile
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Response, UploadFile, File
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
@@ -16,6 +21,10 @@ from app.generators.ppt_generator import ppt_generator
 from app.generators.pdf_generator import pdf_generator
 
 router = APIRouter(prefix="/api")
+
+# The prototype keeps parsed export material in process memory.  The ID returned
+# by /ingest is the only document an export endpoint is allowed to use.
+document_exports: Dict[str, Dict[str, Any]] = {}
 
 
 class RAGQueryRequest(BaseModel):
@@ -48,19 +57,49 @@ def process_rag_query(request: RAGQueryRequest):
 @router.post("/ingest")
 async def ingest_document(file: UploadFile = File(...)):
     """Ingests PDF textbook chapter, extracts text & coordinates, and indexes into vector memory."""
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix != ".pdf":
+        raise HTTPException(status_code=400, detail="Educator uploads currently support PDF documents only.")
+
+    temp_path = ""
     try:
-        # Temporary save or mock parse
-        chunks = pdf_parser_engine._get_fallback_parsed_data(file.filename)
+        # PyMuPDF needs a file path, so persist only this request's uploaded bytes
+        # to a temporary PDF and remove it immediately after extraction.
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_path = temp_file.name
+            temp_file.write(await file.read())
+
+        chunks = pdf_parser_engine.parse_pdf(temp_path)
+        if not chunks:
+            raise HTTPException(status_code=422, detail="No readable text could be extracted from this document.")
+
+        document_id = f"doc_{uuid.uuid4().hex}"
+        for chunk in chunks:
+            chunk["document_id"] = document_id
         vector_store.add_chunks(chunks)
+        title = Path(file.filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
+        document_exports[document_id] = {
+            "document_id": document_id,
+            "title": title,
+            "chunks": chunks,
+            "filename": file.filename,
+        }
         return {
             "status": "success",
+            "document_id": document_id,
+            "title": title,
             "filename": file.filename,
             "chunks_extracted": len(chunks),
-            "pages_processed": max(c["page"] for c in chunks),
+            "pages_processed": max(c.get("page", 0) for c in chunks),
             "message": "Document successfully parsed and indexed into vector repository with coordinate metadata."
         }
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Ingestion failure: {str(e)}")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 @router.get("/quiz")
@@ -96,29 +135,44 @@ def get_readiness_analytics():
     return learner_engine.get_readiness_heatmap()
 
 
+def _get_export_document(document_id: str) -> Dict[str, Any]:
+    document = document_exports.get(document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found. Upload a PDF before exporting.")
+    return document
+
+
 @router.get("/export/ppt")
-def export_ppt(topic: str = "Binary Search Trees"):
+def export_ppt(document_id: str):
     """Generates editable PowerPoint presentation deck (.pptx) with speaker notes."""
     try:
-        ppt_bytes = ppt_generator.generate_ppt_deck(topic)
+        document = _get_export_document(document_id)
+        ppt_bytes = ppt_generator.generate_ppt_deck(document)
+        filename_stem = document["title"].replace(" ", "_")
         return Response(
             content=ppt_bytes,
             media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            headers={"Content-Disposition": f'attachment; filename="Lecture_{topic.replace(" ", "_")}.pptx"'}
+            headers={"Content-Disposition": f'attachment; filename="Lecture_{filename_stem}.pptx"'}
         )
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"PPT Export error: {str(e)}")
 
 
 @router.get("/export/pdf")
-def export_pdf(topic: str = "Binary Search Trees"):
+def export_pdf(document_id: str):
     """Generates printable ReportLab study guide handout (.pdf)."""
     try:
-        pdf_bytes = pdf_generator.generate_handout_pdf(topic)
+        document = _get_export_document(document_id)
+        pdf_bytes = pdf_generator.generate_handout_pdf(document)
+        filename_stem = document["title"].replace(" ", "_")
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="Study_Guide_{topic.replace(" ", "_")}.pdf"'}
+            headers={"Content-Disposition": f'attachment; filename="Study_Guide_{filename_stem}.pdf"'}
         )
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"PDF Export error: {str(e)}")
