@@ -108,9 +108,9 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   Build responsive split-screen student view featuring interactive chat panel on the left and PDF viewer on the right.
 - **Acceptance Criteria**:
-  - [ ] Resizable/toggleable split layout.
-  - [ ] Chat panel with message history, citation badges, and Marks Selector (2, 5, 10 marks).
-  - [ ] Clicking a citation badge scrolls PDF viewer to exact page and triggers coordinate highlight.
+  - [x] Resizable/toggleable split layout.
+  - [x] Chat panel with message history, citation badges, and Marks Selector (2, 5, 10 marks).
+  - [x] Clicking a citation badge scrolls PDF viewer to exact page and triggers coordinate highlight.
 
 ---
 
@@ -197,3 +197,5 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
   - [ ] Update `StudentPortal.jsx` to send the active `document_id` alongside `question` and `marks` in `/api/query` requests.
   - [ ] Refactor `qa_engine.py` prompt templates to ground answer generation in retrieved top-k document chunks for 2, 5, and 10 marks responses.
   - [ ] If top retrieved chunk similarity is below threshold or context is missing, return the verified evidence abstain message.
+
+---

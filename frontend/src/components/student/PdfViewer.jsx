@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FileText, Target, Sparkles, CheckCircle2, Eye, X } from 'lucide-react';
 
 export default function PdfViewer({ activeCitation, setActiveCitation, selectedPage, setSelectedPage }) {
+  const highlightRef = useRef(null);
+
+  // Auto-scroll PDF container to center the bounding box when activeCitation is triggered
+  useEffect(() => {
+    if (activeCitation && activeCitation.page_number === selectedPage && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeCitation, selectedPage]);
   const pagesData = [
     {
       page: 1,
@@ -108,6 +116,7 @@ export default function PdfViewer({ activeCitation, setActiveCitation, selectedP
           {/* Coordinate Bounding Box Overlay Highlight (Only visible when user explicitly clicks a citation) */}
           {activeCitation && activeCitation.page_number === selectedPage && (
             <div
+              ref={highlightRef}
               className="bbox-highlight transition-all duration-300"
               style={{
                 top: `${activeCitation.bounding_box[1]}px`,
