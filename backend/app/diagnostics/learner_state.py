@@ -83,6 +83,12 @@ class LearnerStateEngine:
                 "desc": "Confused In-Order Successor with Pre-Order Traversal.",
                 "analogy": "💡 **Terminology Tip**: In-Order means 'Left -> Root -> Right' (gives sorted order). Pre-Order means 'Root -> Left -> Right'."
             }
+            4: {
+                "type": "careless_error",
+                "title": "Careless Error",
+                "desc": "A simple slip such as misclicking or selecting the wrong option without misunderstanding the concept.",
+                "analogy": "💡 **Careless Tip**: Double‑check your answer before submitting, just like proofreading a short email before sending."
+            },
         }
 
         error_info = taxonomy_mapping.get(selected_option, taxonomy_mapping[1])
