@@ -35,29 +35,79 @@ body {
   background: rgba(30, 41, 59, 0.6);
 }
 
-/* Bounding box orange pulse animation */
+/* Bounding box vibrant orange pulse and shockwave animations */
 @keyframes bbox-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.8);
-    background-color: rgba(249, 115, 22, 0.2);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.75), 0 0 15px rgba(249, 115, 22, 0.35);
+    background-color: rgba(249, 115, 22, 0.16);
+    border-color: rgba(249, 115, 22, 1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(249, 115, 22, 0.25);
-    background-color: rgba(249, 115, 22, 0.35);
+    box-shadow: 0 0 0 10px rgba(249, 115, 22, 0.15), 0 0 25px rgba(249, 115, 22, 0.5);
+    background-color: rgba(249, 115, 22, 0.28);
+    border-color: rgba(251, 146, 60, 1);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
-    background-color: rgba(249, 115, 22, 0.2);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0), 0 0 15px rgba(249, 115, 22, 0.35);
+    background-color: rgba(249, 115, 22, 0.16);
+    border-color: rgba(249, 115, 22, 1);
+  }
+}
+
+@keyframes bbox-shockwave {
+  0% {
+    transform: scale(0.98);
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.9), inset 0 0 20px rgba(249, 115, 22, 0.6);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 16px rgba(249, 115, 22, 0.3), inset 0 0 30px rgba(249, 115, 22, 0.4);
+  }
+  100% {
+    transform: scale(1.03);
+    opacity: 0;
+    box-shadow: 0 0 0 32px rgba(249, 115, 22, 0), inset 0 0 40px rgba(249, 115, 22, 0);
+  }
+}
+
+@keyframes bbox-scanline {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(1000%);
+    opacity: 0;
   }
 }
 
 .bbox-highlight {
   position: absolute;
   border: 2px solid #f97316;
-  border-radius: 6px;
-  animation: bbox-pulse 2s infinite ease-in-out;
-  pointer-events: none;
+  border-radius: 8px;
+  animation: bbox-pulse 2.2s infinite ease-in-out;
+  pointer-events: auto;
   z-index: 30;
+  backdrop-filter: blur(1px);
+  transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1), left 0.2s cubic-bezier(0.16, 1, 0.3, 1), width 0.2s cubic-bezier(0.16, 1, 0.3, 1), height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bbox-highlight.is-bursting {
+  border-width: 2.5px;
+  animation: bbox-pulse 1.2s infinite ease-in-out;
+}
+
+.bbox-shockwave-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  border: 2px solid #f97316;
+  pointer-events: none;
+  animation: bbox-shockwave 1.2s ease-out forwards;
 }
 
 /* Custom smooth scrollbars */

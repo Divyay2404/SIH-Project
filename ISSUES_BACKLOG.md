@@ -120,9 +120,9 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   Draw a vibrant orange highlight bounding box overlay over the original PDF page based on citation coordinates.
 - **Acceptance Criteria**:
-  - [ ] Render PDF page image/canvas cleanly.
-  - [ ] Dynamically scale normalized `[x0, y0, x1, y1]` coordinates to match current viewer zoom level.
-  - [ ] Display animated pulse highlight effect when user clicks a citation reference link.
+  - [x] Render PDF page image/canvas cleanly.
+  - [x] Dynamically scale normalized `[x0, y0, x1, y1]` coordinates to match current viewer zoom level.
+  - [x] Display animated pulse highlight effect when user clicks a citation reference link.
 
 ---
 
