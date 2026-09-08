@@ -8,10 +8,25 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-
-from fastapi import APIRouter, HTTPException, Response, UploadFile, File
-from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
+
+from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Query
+
+from app.schemas.api_schemas import (
+    HealthCheckResponse,
+    RootHealthResponse,
+    IngestResponse,
+    CitationMetadata,
+    RAGQueryRequest,
+    RAGQueryResponse,
+    QuizQuestionResponse,
+    QuizSubmissionRequest,
+    RescueMissionDetails,
+    DiagnosticResponse,
+    TopicHeatmapItem,
+    ReadinessResponse,
+    ErrorResponse,
+)
 
 from app.ingestion.pdf_parser import pdf_parser_engine
 from app.rag.vector_store import vector_store
@@ -22,40 +37,56 @@ from app.generators.pdf_generator import pdf_generator
 
 router = APIRouter(prefix="/api")
 
-# The prototype keeps parsed export material in process memory.  The ID returned
+# The prototype keeps parsed export material in process memory. The ID returned
 # by /ingest is the only document an export endpoint is allowed to use.
 document_exports: Dict[str, Dict[str, Any]] = {}
 
 
-class RAGQueryRequest(BaseModel):
-    question: str = Field(..., example="Explain Binary Search Tree deletion algorithm")
-    marks: int = Field(default=5, example=5)
-    document_id: Optional[str] = "doc_bst_chapter_01"
+@router.get(
+    "/health",
+    response_model=HealthCheckResponse,
+    summary="API Gateway Health Check",
+    tags=["Health"]
+)
+async def health_check() -> HealthCheckResponse:
+    """Returns gateway service health status, engine identifier, and version."""
+    return HealthCheckResponse(
+        status="online",
+        system="StudyCopilot & StudyForge Engine",
+        version="1.0.0"
+    )
 
 
-class QuizSubmissionRequest(BaseModel):
-    question_id: str = Field(default="q_bst_del_01")
-    selected_option: int = Field(..., example=1)
-    topic_id: str = Field(default="bst_deletion")
-
-
-@router.get("/health")
-def health_check():
-    return {"status": "online", "system": "StudyCopilot & StudyForge Engine", "version": "1.0.0"}
-
-
-@router.post("/query")
-def process_rag_query(request: RAGQueryRequest):
+@router.post(
+    "/query",
+    response_model=RAGQueryResponse,
+    summary="Execute grounded marks-aware RAG query",
+    tags=["RAG"],
+    responses={
+        500: {"model": ErrorResponse, "description": "RAG engine execution error"}
+    }
+)
+async def process_rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
     """Executes grounded, evidence-gated RAG query with marks-aware output (2, 5, 10 marks)."""
     try:
         result = qa_engine.answer_question(question=request.question, marks=request.marks)
-        return result
+        return RAGQueryResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/ingest")
-async def ingest_document(file: UploadFile = File(...)):
+@router.post(
+    "/ingest",
+    response_model=IngestResponse,
+    summary="Ingest PDF textbook chapter and index vectors",
+    tags=["Ingestion"],
+    responses={
+        400: {"model": ErrorResponse, "description": "File format invalid or empty file"},
+        422: {"model": ErrorResponse, "description": "No readable text extracted"},
+        500: {"model": ErrorResponse, "description": "Ingestion processing error"}
+    }
+)
+async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
     """Ingests PDF textbook chapter, extracts text & coordinates, and indexes into vector memory."""
     suffix = Path(file.filename or "").suffix.lower()
     if suffix != ".pdf":
@@ -89,15 +120,15 @@ async def ingest_document(file: UploadFile = File(...)):
             "chunks": chunks,
             "filename": raw_filename,
         }
-        return {
-            "status": "success",
-            "document_id": document_id,
-            "title": title,
-            "filename": raw_filename,
-            "chunks_extracted": len(chunks),
-            "pages_processed": max((c.get("page", 0) for c in chunks), default=1),
-            "message": "Document successfully parsed and indexed into vector repository with coordinate metadata."
-        }
+        return IngestResponse(
+            status="success",
+            document_id=document_id,
+            title=title,
+            filename=raw_filename,
+            chunks_extracted=len(chunks),
+            pages_processed=max((c.get("page", 0) for c in chunks), default=1),
+            message="Document successfully parsed and indexed into vector repository with coordinate metadata."
+        )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
@@ -107,37 +138,53 @@ async def ingest_document(file: UploadFile = File(...)):
             os.unlink(temp_path)
 
 
-@router.get("/quiz")
-def get_diagnostic_quiz():
+@router.get(
+    "/quiz",
+    response_model=QuizQuestionResponse,
+    summary="Fetch active diagnostic micro-quiz question",
+    tags=["Diagnostics"]
+)
+async def get_diagnostic_quiz() -> QuizQuestionResponse:
     """Fetches active diagnostic micro-quiz question."""
-    return {
-        "question_id": "q_bst_del_01",
-        "topic": "Binary Search Tree Deletion",
-        "question_text": "When deleting a BST node with two children, which node is substituted in its place to maintain the BST invariant?",
-        "options": [
+    return QuizQuestionResponse(
+        question_id="q_bst_del_01",
+        topic="Binary Search Tree Deletion",
+        question_text="When deleting a BST node with two children, which node is substituted in its place to maintain the BST invariant?",
+        options=[
             "In-Order Successor (Smallest key in right subtree)",
             "Pre-Order Traversal Root Node",
             "Right-most Leaf Node in Left Subtree",
             "Any random child node"
         ]
-    }
+    )
 
 
-@router.post("/diagnose")
-def submit_quiz_answer(request: QuizSubmissionRequest):
+@router.post(
+    "/diagnose",
+    response_model=DiagnosticResponse,
+    summary="Diagnose student mistake against error taxonomy",
+    tags=["Diagnostics"]
+)
+async def submit_quiz_answer(request: QuizSubmissionRequest) -> DiagnosticResponse:
     """Diagnoses student mistake against Error Taxonomy and triggers Rescue Mission if needed."""
     result = learner_engine.evaluate_quiz_answer(
         question_id=request.question_id,
         selected_option=request.selected_option,
         topic_id=request.topic_id
     )
-    return result
+    return DiagnosticResponse(**result)
 
 
-@router.get("/readiness")
-def get_readiness_analytics():
+@router.get(
+    "/readiness",
+    response_model=ReadinessResponse,
+    summary="Retrieve student readiness heatmap and error breakdown",
+    tags=["Diagnostics"]
+)
+async def get_readiness_analytics() -> ReadinessResponse:
     """Returns student readiness heatmap & class error distribution data."""
-    return learner_engine.get_readiness_heatmap()
+    data = learner_engine.get_readiness_heatmap()
+    return ReadinessResponse(**data)
 
 
 def _get_export_document(document_id: str) -> Dict[str, Any]:
@@ -147,8 +194,24 @@ def _get_export_document(document_id: str) -> Dict[str, Any]:
     return document
 
 
-@router.get("/export/ppt")
-def export_ppt(document_id: str):
+@router.get(
+    "/export/ppt",
+    summary="Export editable PowerPoint presentation deck (.pptx)",
+    tags=["Exports"],
+    responses={
+        200: {
+            "content": {
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation": {}
+            },
+            "description": "Generated PowerPoint presentation deck file."
+        },
+        404: {"model": ErrorResponse, "description": "Document not found."},
+        500: {"model": ErrorResponse, "description": "PPT Export failure."}
+    }
+)
+async def export_ppt(
+    document_id: str = Query(..., description="Document ID generated during /api/ingest")
+):
     """Generates editable PowerPoint presentation deck (.pptx) with speaker notes."""
     try:
         document = _get_export_document(document_id)
@@ -165,8 +228,24 @@ def export_ppt(document_id: str):
         raise HTTPException(status_code=500, detail=f"PPT Export error: {str(e)}")
 
 
-@router.get("/export/pdf")
-def export_pdf(document_id: str):
+@router.get(
+    "/export/pdf",
+    summary="Export printable ReportLab study guide handout (.pdf)",
+    tags=["Exports"],
+    responses={
+        200: {
+            "content": {
+                "application/pdf": {}
+            },
+            "description": "Generated ReportLab study guide handout PDF."
+        },
+        404: {"model": ErrorResponse, "description": "Document not found."},
+        500: {"model": ErrorResponse, "description": "PDF Export failure."}
+    }
+)
+async def export_pdf(
+    document_id: str = Query(..., description="Document ID generated during /api/ingest")
+):
     """Generates printable ReportLab study guide handout (.pdf)."""
     try:
         document = _get_export_document(document_id)
