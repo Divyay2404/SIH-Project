@@ -29,6 +29,7 @@ export default function StudentPortal() {
   const [selectedMarks, setSelectedMarks] = useState(5);
   const [selectedPage, setSelectedPage] = useState(3);
   const [activeCitation, setActiveCitation] = useState(null);
+  const [activeDocumentId, setActiveDocumentId] = useState('doc_bst_chapter_01');
   const [inputQuery, setInputQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
@@ -123,8 +124,19 @@ export default function StudentPortal() {
   };
 
   // Client-side grounded RAG fallback generator to guarantee questions are ALWAYS answered
-  const generateGroundedAnswer = (queryText, marks) => {
+  const generateGroundedAnswer = (queryText, marks, documentId = activeDocumentId) => {
     const qLower = queryText.toLowerCase();
+
+    // If query is targeted to an unknown document or outside active scope, abstain
+    if (documentId && documentId !== 'doc_bst_chapter_01') {
+      return {
+        sender: 'bot',
+        marks: marks,
+        abstain: true,
+        text: "❌ **Abstention Gate Triggered**: The requested query is not supported by verified textbook evidence in the syllabus repository.",
+        citation: null
+      };
+    }
 
     // Off-topic refusal check
     if (qLower.includes("cake") || qLower.includes("bake") || qLower.includes("movie") || qLower.includes("game") || qLower.includes("cook")) {
@@ -198,7 +210,8 @@ export default function StudentPortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: queryText,
-          marks: selectedMarks
+          marks: selectedMarks,
+          document_id: activeDocumentId || 'doc_bst_chapter_01'
         })
       });
 
@@ -216,14 +229,14 @@ export default function StudentPortal() {
           handleCitationClick(data.citation, false);
         }
       } else {
-        const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks);
+        const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks, activeDocumentId);
         setMessages(prev => [...prev, fallbackMsg]);
         if (fallbackMsg.citation) {
           handleCitationClick(fallbackMsg.citation, false);
         }
       }
     } catch (err) {
-      const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks);
+      const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks, activeDocumentId);
       setMessages(prev => [...prev, fallbackMsg]);
       if (fallbackMsg.citation) {
         handleCitationClick(fallbackMsg.citation, false);

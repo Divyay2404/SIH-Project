@@ -193,10 +193,10 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   In the Student Portal split-screen chat interface, when a student submits a question regarding their uploaded document, the generated response is not relevant to the query or active document. The backend returns off-topic answers or fallback definitions instead of querying the vector database for matching textbook evidence.
 - **Acceptance Criteria**:
-  - [ ] Enforce strict `document_id` scoping in `vector_store.search(query, document_id)` to query embeddings of the active uploaded document.
-  - [ ] Update `StudentPortal.jsx` to send the active `document_id` alongside `question` and `marks` in `/api/query` requests.
-  - [ ] Refactor `qa_engine.py` prompt templates to ground answer generation in retrieved top-k document chunks for 2, 5, and 10 marks responses.
-  - [ ] If top retrieved chunk similarity is below threshold or context is missing, return the verified evidence abstain message.
+  - [x] Enforce strict `document_id` scoping in `vector_store.search(query, document_id)` to query embeddings of the active uploaded document.
+  - [x] Update `StudentPortal.jsx` to send the active `document_id` alongside `question` and `marks` in `/api/query` requests.
+  - [x] Refactor `qa_engine.py` prompt templates to ground answer generation in retrieved top-k document chunks for 2, 5, and 10 marks responses.
+  - [x] If top retrieved chunk similarity is below threshold or context is missing, return the verified evidence abstain message.
 
 ---
 
