@@ -222,3 +222,58 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
   - [ ] All existing and new backend tests pass successfully.
  
   ---
+
+### 🔹 Issue #16: Complete PDF Upload → Document Analysis → Educator Output Pipeline
+
+- **Labels**: `feature`, `role:backend`, `role:educator-ui`, `ingestion`, `rag`, `high-priority`
+- **Target File**: `backend/app/api/routes.py`, `backend/app/ingestion/pdf_parser.py`, `backend/app/ingestion/ocr.py`, `backend/app/rag/vector_store.py`, `backend/app/rag/qa_engine.py`, `backend/app/generators/ppt_generator.py`, `backend/app/generators/pdf_generator.py`, `frontend/src/components/educator/EducatorConsole.jsx`, `frontend/src/config/api.js`
+- **Description**:\
+  Complete the Educator Console PDF workflow so that any uploaded lecture notes, textbook, or course-material PDF is validated, processed using PyMuPDF/OCR, structurally analyzed, indexed in the Vector DB, and used to generate document-specific summaries, important concepts, slide outlines, PPTs, and study handouts. The Educator Console must display the actual uploaded document's content and accurately report processing, backend, and indexing status without relying on hardcoded/demo content.
+- **Acceptance Criteria**:
+  - [ ] Accept arbitrary lecture notes, textbooks, study material, and course PDFs without filename-specific or subject-specific logic.
+  - [ ] Validate uploaded PDFs and gracefully handle empty, invalid, corrupted, and unreadable files.
+  - [ ] Return a unique `document_id` and display clear upload/processing status.
+  - [ ] Use the existing PyMuPDF parser to extract page text, structured paragraphs/chunks, headings, page indexes, character offsets, bounding boxes, and layout information.
+  - [ ] Preserve meaningful multi-column reading order and clean common PDF extraction artifacts.
+  - [ ] Use the existing OCR fallback for scanned and mixed selectable/scanned PDFs.
+  - [ ] Preserve OCR text blocks and bounding boxes and handle OCR failures without crashing ingestion.
+  - [ ] Index extracted chunks in the existing Vector DB using the correct `document_id`.
+  - [ ] Prevent chunks from different documents from being mixed.
+  - [ ] Confirm Vector DB indexing only after it actually succeeds.
+  - [ ] Preserve existing embeddings, retrieval, citations, confidence scores, source highlighting, and bounding-box highlighting.
+  - [ ] Make the uploaded document queryable through the existing RAG pipeline using the correct `document_id`.
+  - [ ] Generate a document-specific title/name, page count, chunk count, sections/headings, important concepts/topics, important portions, and summary.
+  - [ ] Ensure all document analysis is based on the actual uploaded PDF.
+  - [ ] Generate a document-specific slide outline with meaningful slide titles, bullet points, important topics, sections, and speaker/teaching notes where supported.
+  - [ ] Ensure the existing Slide Outline Editor displays content from the uploaded document.
+  - [ ] Generate a document-specific PPT using the existing PPT generator and verify that it is valid and downloadable.
+  - [ ] Generate a document-specific study handout using the existing PDF/handout generator and verify that it is valid and downloadable.
+  - [ ] Update the Educator Console to display document name/title, processing/indexing status, page count, chunk count, summary, concepts, sections, slide outline, PPT export, and study handout export.
+  - [ ] Display processing states: Uploading → Processing PDF → Extracting Text → Analyzing Structure → Indexing in Vector DB → Generating Learning Content → Ready.
+  - [ ] Clearly distinguish Backend Connected from Backend Unavailable.
+  - [ ] Do not display "Indexed in Vector DB" unless indexing actually succeeds.
+  - [ ] Do not silently treat backend failures as successful ingestion.
+  - [ ] Handle HTTP 404, 500, 502, 503, 504, network timeout, malformed API responses, and missing `document_id` with clear human-readable errors.
+  - [ ] Handle OCR, Vector DB, embedding, parsing, PPT generation, and handout generation failures gracefully.
+  - [ ] Prevent frontend JSON parsing errors such as `Unexpected token`.
+  - [ ] Identify and remove/replace hardcoded document-specific demo content where actual uploaded-document data is available.
+  - [ ] Do not display unrelated ML/BST/AVL or other demo content as if it came from the uploaded PDF.
+  - [ ] Clearly label any remaining fallback/demo data.
+  - [ ] Do not generate fake student performance statistics from PDF uploads.
+  - [ ] Ensure the Weakness Heatmap uses actual student diagnostic/error data and shows an appropriate empty state when no diagnostic data exists.
+  - [ ] Preserve existing error taxonomy and mastery/readiness analytics.
+  - [ ] Use the existing `VITE_API_BASE_URL` configuration for backend connectivity.
+  - [ ] Do not hardcode localhost or production URLs.
+  - [ ] Preserve local development support.
+  - [ ] Use the returned `document_id` for all subsequent document-specific operations.
+  - [ ] Test selectable-text, scanned, mixed, multi-page, multi-column, table, and different-subject PDFs.
+  - [ ] Verify filename/title, page/chunk counts, headings, concepts, summary, slide outline, PPT, and handout all correspond to the uploaded PDF.
+  - [ ] Verify RAG retrieval uses the correct document and does not retrieve unrelated document content.
+  - [ ] Verify backend failures are clearly reported and no false indexing success is shown.
+  - [ ] Add/update automated tests for PDF ingestion, OCR fallback, document indexing, document-specific analysis, RAG, API failures, PPT generation, and handout generation.
+  - [ ] Run all existing and new backend tests, relevant frontend tests/build, and lint/type checks if configured.
+  - [ ] Preserve all existing OCR, RAG, analytics, PPT, handout, and ingestion functionality.
+
+   ---
+
+ 
