@@ -69,7 +69,11 @@ async def health_check() -> HealthCheckResponse:
 async def process_rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
     """Executes grounded, evidence-gated RAG query with marks-aware output (2, 5, 10 marks)."""
     try:
-        result = qa_engine.answer_question(question=request.question, marks=request.marks)
+        result = qa_engine.answer_question(
+            question=request.question,
+            marks=request.marks,
+            document_id=request.document_id
+        )
         return RAGQueryResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,11 +112,12 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         if not chunks:
             raise HTTPException(status_code=422, detail="No readable text could be extracted from this document.")
 
+        raw_filename = file.filename or "Uploaded_Document.pdf"
         document_id = f"doc_{uuid.uuid4().hex}"
         for chunk in chunks:
             chunk["document_id"] = document_id
+            chunk["document_name"] = raw_filename
         vector_store.add_chunks(chunks)
-        raw_filename = file.filename or "Uploaded_Document.pdf"
         title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
         document_exports[document_id] = {
             "document_id": document_id,
