@@ -31,10 +31,19 @@ class TestDynamicEducatorExports(unittest.TestCase):
     def test_handout_uses_uploaded_document_content(self):
         if not pdf_generator.available:
             self.skipTest("ReportLab is not installed")
-        from pypdf import PdfReader
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(pdf_generator.generate_handout_pdf(DOCUMENT)))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except ImportError:
+            try:
+                import pymupdf as fitz
+            except ImportError:
+                import fitz
+            doc = fitz.open(stream=pdf_generator.generate_handout_pdf(DOCUMENT), filetype="pdf")
+            text = "\n".join(page.get_text() for page in doc)
+            doc.close()
 
-        reader = PdfReader(io.BytesIO(pdf_generator.generate_handout_pdf(DOCUMENT)))
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
         self.assertIn("Operating Systems Scheduling", text)
         self.assertIn("Context Switching", text)
         self.assertNotIn("Binary Search Trees", text)

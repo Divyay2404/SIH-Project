@@ -23,6 +23,7 @@ import {
 import MarksSelector from './MarksSelector';
 import PdfViewer from './PdfViewer';
 import DiagnosticQuiz from './DiagnosticQuiz';
+import { apiUrl } from '../../config/api';
 
 export default function StudentPortal() {
   const [selectedMarks, setSelectedMarks] = useState(5);
@@ -192,7 +193,7 @@ export default function StudentPortal() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/query', {
+      const res = await fetch(apiUrl('/api/query'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
