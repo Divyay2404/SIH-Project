@@ -132,9 +132,9 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   Build teacher console with textbook upload zone, slide outline editor, and one-click export buttons.
 - **Acceptance Criteria**:
-  - [ ] Drag-and-drop syllabus/textbook document uploader.
-  - [ ] Live preview of extracted slide topics and speaker notes.
-  - [ ] Direct download triggers for `.pptx` and `.pdf` files.
+  - [x] Drag-and-drop syllabus/textbook document uploader.
+  - [x] Live preview of extracted slide topics and speaker notes.
+  - [x] Direct download triggers for `.pptx` and `.pdf` files.
 
 ---
 
