@@ -236,7 +236,7 @@ export default function StudentPortal() {
   // Clicking a citation badge scrolls PDF viewer to exact page and triggers coordinate highlight
   const handleCitationClick = (citation, userInitiated = true) => {
     if (!citation) return;
-    setActiveCitation(citation);
+    setActiveCitation({ ...citation, triggerTimestamp: Date.now() });
     setSelectedPage(citation.page_number);
 
     // If in chat-only mode, restore split layout so PDF viewer is immediately visible
