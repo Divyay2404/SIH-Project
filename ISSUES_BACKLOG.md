@@ -60,9 +60,9 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   Extract page text along with character string offsets and pixel bounding boxes `[x0, y0, x1, y1]` during PDF ingestion.
 - **Acceptance Criteria**:
-  - [ ] Extract structured text per page with bounding box array for each paragraph/chunk.
-  - [ ] Clean multi-column layout artifacts and preserve section headings.
-  - [ ] Return JSON payload containing page text, page index, and normalized coordinates `[x0, y0, x1, y1]`.
+  - [x] Extract structured text per page with bounding box array for each paragraph/chunk.
+  - [x] Clean multi-column layout artifacts and preserve section headings.
+  - [x] Return JSON payload containing page text, page index, and normalized coordinates `[x0, y0, x1, y1]`.
 
 ---
 
