@@ -9,6 +9,7 @@ env/
 # Build outputs
 frontend/dist/
 frontend/dist-ssr/
+frontend/tests/.compiled*
 *.local
 
 # Python cache & data

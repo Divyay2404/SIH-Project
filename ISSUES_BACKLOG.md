@@ -144,9 +144,9 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 - **Description**:  
   Visualize class-wide conceptual gaps and misconception patterns using a color-coded heatmap grid.
 - **Acceptance Criteria**:
-  - [ ] Grid displaying topic readiness (Red = High Error Rate, Green = Mastered).
-  - [ ] Hover tooltips showing top error categories (e.g., Conceptual Gap in BST Deletion).
-  - [ ] Filter by mistake taxonomy type.
+  - [x] Grid displaying topic readiness (Red = High Error Rate, Green = Mastered).
+  - [x] Hover tooltips showing top error categories (e.g., Conceptual Gap in BST Deletion).
+  - [x] Filter by mistake taxonomy type.
 
 ---
 
