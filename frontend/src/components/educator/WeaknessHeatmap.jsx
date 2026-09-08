@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, AlertCircle, TrendingDown, Layers, PieChart } from 'lucide-react';
+import { apiUrl } from '../../config/api';
 
 export default function WeaknessHeatmap() {
   const [heatmapData, setHeatmapData] = useState({
@@ -19,9 +20,9 @@ export default function WeaknessHeatmap() {
   });
 
   useEffect(() => {
-    fetch('/api/readiness')
-      .then(res => res.json())
-      .then(data => setHeatmapData(data))
+    fetch(apiUrl('/api/readiness'))
+      .then(res => res.ok && res.headers.get('content-type')?.includes('application/json') ? res.json() : null)
+      .then(data => data && setHeatmapData(data))
       .catch(err => console.error(err));
   }, []);
 

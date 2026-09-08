@@ -63,11 +63,15 @@ async def ingest_document(file: UploadFile = File(...)):
 
     temp_path = ""
     try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="The uploaded PDF file is empty.")
+
         # PyMuPDF needs a file path, so persist only this request's uploaded bytes
         # to a temporary PDF and remove it immediately after extraction.
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             temp_path = temp_file.name
-            temp_file.write(await file.read())
+            temp_file.write(content)
 
         chunks = pdf_parser_engine.parse_pdf(temp_path)
         if not chunks:
@@ -77,20 +81,21 @@ async def ingest_document(file: UploadFile = File(...)):
         for chunk in chunks:
             chunk["document_id"] = document_id
         vector_store.add_chunks(chunks)
-        title = Path(file.filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
+        raw_filename = file.filename or "Uploaded_Document.pdf"
+        title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
         document_exports[document_id] = {
             "document_id": document_id,
             "title": title,
             "chunks": chunks,
-            "filename": file.filename,
+            "filename": raw_filename,
         }
         return {
             "status": "success",
             "document_id": document_id,
             "title": title,
-            "filename": file.filename,
+            "filename": raw_filename,
             "chunks_extracted": len(chunks),
-            "pages_processed": max(c.get("page", 0) for c in chunks),
+            "pages_processed": max((c.get("page", 0) for c in chunks), default=1),
             "message": "Document successfully parsed and indexed into vector repository with coordinate metadata."
         }
     except Exception as e:

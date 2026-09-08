@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, Presentation, FileText, CheckCircle, Sparkles, FolderPlus } from 'lucide-react';
 import WeaknessHeatmap from './WeaknessHeatmap';
+import { apiUrl } from '../../config/api';
 
 export default function EducatorConsole() {
   const [uploadStatus, setUploadStatus] = useState(null);
@@ -9,37 +10,84 @@ export default function EducatorConsole() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
+    const formattedSize = (file.size / 1024 / 1024).toFixed(2) + " MB";
     setUploading(true);
-    setUploadStatus({ name: file.name, status: "Extracting document content..." });
+    setUploadStatus({
+      name: file.name,
+      size: formattedSize,
+      status: "Extracting document content..."
+    });
+
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const response = await fetch('/api/ingest', { method: 'POST', body: formData });
+
+      let response;
+      try {
+        response = await fetch(apiUrl('/api/ingest'), { method: 'POST', body: formData });
+      } catch (networkErr) {
+        throw new Error('Server unreachable. Please verify that the backend service is running.');
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
+      if (!response.ok) {
+        if (isJson) {
+          try {
+            const errorPayload = await response.json();
+            throw new Error(errorPayload.detail || `Ingestion error (HTTP ${response.status})`);
+          } catch (jsonErr) {
+            if (jsonErr.message && !jsonErr.message.includes('Unexpected token')) {
+              throw jsonErr;
+            }
+          }
+        }
+
+        // Handle non-JSON responses (e.g. 404, 502, 504 plain text/HTML)
+        if (response.status === 404) {
+          throw new Error('Server unavailable (HTTP 404): Upload endpoint not found.');
+        } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error(`Server gateway error (HTTP ${response.status}). Please check backend status.`);
+        } else {
+          throw new Error(`Server returned an unexpected response (HTTP ${response.status}).`);
+        }
+      }
+
+      if (!isJson) {
+        throw new Error('Server returned an unexpected response format.');
+      }
+
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.detail || 'The document could not be ingested.');
       setUploadStatus({
         name: file.name,
-        size: (file.size / 1024 / 1024).toFixed(2) + " MB",
+        size: formattedSize,
         documentId: payload.document_id,
         title: payload.title,
         status: `${payload.chunks_extracted} sections extracted and ready for export`
       });
     } catch (err) {
-      setUploadStatus({ name: file.name, error: err.message, status: 'Upload failed' });
+      setUploadStatus((prev) => ({
+        name: file.name,
+        size: formattedSize,
+        error: err.message,
+        status: 'Upload failed'
+      }));
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
-  // Problem 3 Fix: Trigger actual file download without navigating browser to 404 page!
+  // Trigger actual file download without navigating browser to 404 page
   const handleExportPPT = async () => {
     if (!uploadStatus?.documentId) return;
     setDownloadingPpt(true);
     try {
-      const res = await fetch(`/api/export/ppt?document_id=${encodeURIComponent(uploadStatus.documentId)}`);
+      const res = await fetch(apiUrl(`/api/export/ppt?document_id=${encodeURIComponent(uploadStatus.documentId)}`));
       if (res.ok) {
         const blob = await res.blob();
         downloadBlob(blob, `Lecture_${safeFilename(uploadStatus.title)}.pptx`);
@@ -57,7 +105,7 @@ export default function EducatorConsole() {
     if (!uploadStatus?.documentId) return;
     setDownloadingPdf(true);
     try {
-      const res = await fetch(`/api/export/pdf?document_id=${encodeURIComponent(uploadStatus.documentId)}`);
+      const res = await fetch(apiUrl(`/api/export/pdf?document_id=${encodeURIComponent(uploadStatus.documentId)}`));
       if (res.ok) {
         const blob = await res.blob();
         downloadBlob(blob, `Study_Guide_${safeFilename(uploadStatus.title)}.pdf`);

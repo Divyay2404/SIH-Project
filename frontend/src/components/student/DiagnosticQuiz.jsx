@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, CheckCircle, Lightbulb, ShieldAlert, RefreshCw, X } from 'lucide-react';
+import { apiUrl } from '../../config/api';
 
 export default function DiagnosticQuiz({ isOpen, onClose }) {
   const [selectedOption, setSelectedOption] = useState(null);
@@ -22,7 +23,7 @@ export default function DiagnosticQuiz({ isOpen, onClose }) {
     if (selectedOption === null) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/diagnose', {
+      const res = await fetch(apiUrl('/api/diagnose'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -31,8 +32,10 @@ export default function DiagnosticQuiz({ isOpen, onClose }) {
           topic_id: 'bst_deletion'
         })
       });
-      const data = await res.json();
-      setDiagnosis(data);
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        setDiagnosis(data);
+      }
     } catch (err) {
       console.error(err);
     } finally {
