@@ -199,3 +199,26 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
   - [ ] If top retrieved chunk similarity is below threshold or context is missing, return the verified evidence abstain message.
 
 ---
+
+
+### 🔹 Issue #15: Fix Generic PDF Upload Pipeline & Production API Connectivity
+
+- **Labels**: `bug`, `role:backend`, `role:student-ui`, `role:educator-ui`, `backend`, `frontend`, `high-priority`
+- **Target File**: `backend/app/api/routes.py`, `backend/app/generators/pdf_generator.py`, `frontend/src/components/educator/EducatorConsole.jsx`, `frontend/src/config/api.js`, `frontend/vite.config.js`, `vercel.json`
+- **Description**:\
+  In the Educator Console, uploading lecture notes or course-material PDFs fails because the frontend expects a JSON response from `/api/ingest`, while the deployed Vercel frontend currently has no reachable production FastAPI backend. Non-JSON gateway responses such as `404 "The page could not be found"` cause a JSON parsing error. The local FastAPI backend also fails to start due to a missing `pdf_generator` export. The upload pipeline must be fixed generically so any valid lecture-notes PDF can be processed and indexed without filename-specific logic.
+- **Acceptance Criteria**:
+  - [ ] Restore `pdf_generator` compatibility in `backend/app/generators/pdf_generator.py` so FastAPI starts successfully without import errors.
+  - [ ] Ensure `/api/ingest` accepts arbitrary valid lecture-notes/course-material PDFs and returns a consistent JSON success response.
+  - [ ] Reject empty, invalid, or unreadable PDFs with clear JSON error responses instead of server crashes.
+  - [ ] Update `EducatorConsole.jsx` to safely handle JSON and non-JSON responses and prevent `Unexpected token` parsing errors.
+  - [ ] Preserve uploaded file size correctly in the upload status UI.
+  - [ ] Centralize frontend API routing through `VITE_API_BASE_URL` for local and production environments.
+  - [ ] Ensure local `/api/*` requests are correctly proxied to the FastAPI backend.
+  - [ ] Prepare production API connectivity so the Vercel frontend can communicate with the deployed FastAPI backend.
+  - [ ] Preserve existing OCR fallback, bounding-box extraction, RAG indexing, PPT generation, and handout generation functionality.
+  - [ ] Verify selectable, scanned, mixed, multi-page, table, and multi-column PDFs are handled safely.
+  - [ ] Add/update automated tests for backend startup, PDF ingestion, error responses, arbitrary filenames, and frontend upload error handling.
+  - [ ] All existing and new backend tests pass successfully.
+ 
+  ---
