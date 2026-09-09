@@ -1,9 +1,3 @@
-"""
-Production Deployment & Ingestion API Integration Test Suite.
-Verifies production ASGI application entry point, CORS headers for Vercel,
-POST /api/ingest, GET /api/health, and end-to-end document lifecycle operations.
-"""
-
 import io
 import unittest
 from fastapi.testclient import TestClient
