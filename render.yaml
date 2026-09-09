@@ -1,0 +1,22 @@
+# =============================================================================
+# Render Blueprint Configuration (render.yaml)
+# 1-Click Production Deployment for FastAPI Backend Service
+# =============================================================================
+
+services:
+  - type: web
+    name: sih-fastapi-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGIN_REGEX
+        value: "^https:\\/\\/.*\\.vercel\\.app$"
+      - key: CORS_ORIGINS
+        value: "*"

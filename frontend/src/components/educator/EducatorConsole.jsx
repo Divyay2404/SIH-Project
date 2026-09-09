@@ -365,12 +365,12 @@ export default function EducatorConsole() {
           } catch (jsonErr) {
             // Ignore JSON parse failure on non-JSON payload
           }
-        } else {
-          if (response.status === 404) {
-            errorMessage = 'Server unavailable (HTTP 404): Ingestion endpoint not found.';
-          } else if ([502, 503, 504].includes(response.status)) {
-            errorMessage = `Gateway error (HTTP ${response.status}). Ingestion service temporarily unavailable.`;
-          }
+        }
+        
+        if (response.status === 404) {
+          errorMessage = 'Server unavailable (HTTP 404): Ingestion endpoint not found. Please verify the FastAPI backend is deployed and VITE_API_BASE_URL is configured in your Vercel settings.';
+        } else if ([502, 503, 504].includes(response.status)) {
+          errorMessage = `Gateway error (HTTP ${response.status}). Ingestion service temporarily unavailable.`;
         }
         throw new Error(errorMessage);
       }
