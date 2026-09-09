@@ -276,4 +276,55 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 
    ---
 
+ ### 🔹 Issue #17: Deploy FastAPI Backend & Connect Production Ingestion API
+
+Labels: bug, deployment, role:backend, role:educator-ui, high-priority
+Description
+The Educator Console PDF upload currently fails in production with:
+Ingestion failed: Server unavailable (HTTP 404): Ingestion endpoint not found.
+
+The frontend is deployed on Vercel, but the FastAPI backend containing POST /api/ingest is not currently reachable from the production frontend. As a result, PDF uploads are sent to an unavailable/non-existent production ingestion endpoint.
+The backend must be deployed separately and connected to the Vercel frontend through VITE_API_BASE_URL.
+Expected Flow
+Educator Console
+      ↓
+Production API URL
+      ↓
+FastAPI Backend
+      ↓
+POST /api/ingest
+      ↓
+PDF Validation
+      ↓
+PyMuPDF + OCR
+      ↓
+Document Analysis
+      ↓
+Vector DB Indexing
+      ↓
+Response to Educator Console
+Acceptance Criteria
+- Deploy the existing FastAPI backend to a production hosting service.
+- Backend starts successfully using a production command such as:uvicorn app.main:app --host 0.0.0.0 --port $PORT
+- Production backend exposes POST /api/ingest.
+- Production backend exposes GET /api/health.
+- Configure Vercel with:VITE_API_BASE_URL=<production-backend-url>
+- Frontend does not contain hardcoded production API URLs.
+- Redeploy frontend after configuring VITE_API_BASE_URL.
+- Uploading an arbitrary valid PDF from Educator Console succeeds in production.
+- PDF ingestion performs document extraction, OCR when required, analysis, and vector indexing.
+- Returned document_id is correctly used by subsequent document operations.
+- PPT and handout generation continue working with the production backend.
+- Student RAG queries use the deployed backend correctly.
+- /api/health correctly reports backend availability.
+- If backend is unavailable, frontend displays a clear error instead of a JSON parsing error.
+- Production deployment includes the required OCR/Tesseract runtime dependencies for scanned PDFs.
+- Verify the complete production flow with at least one selectable PDF and one scanned/mixed PDF.
+- Existing backend and frontend tests continue to pass.
+Production Considerations
+The current vector store and document analysis cache are in-memory. This is acceptable for the initial prototype deployment but should be replaced with persistent/centralized storage for multi-worker or multi-instance production.
+Definition of Done
+A user can open the production Educator Console, upload a PDF, and successfully see its document analysis, concepts, sections, important portions, slide outline, indexing status, and generated PPT/handout without receiving a 404 ingestion error.
+Suggested title:
+fix: deploy backend and connect production ingestion API
  
