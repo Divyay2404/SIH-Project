@@ -1,7 +1,7 @@
 import React from 'react';
-import { BookOpen, GraduationCap, ShieldCheck, Sparkles, LayoutDashboard } from 'lucide-react';
+import { BookOpen, GraduationCap, ShieldCheck, ShieldAlert, Sparkles, LayoutDashboard } from 'lucide-react';
 
-export default function Header({ activeTab, setActiveTab }) {
+export default function Header({ activeTab, setActiveTab, activeDocument = null }) {
   return (
     <header className="glass-panel sticky top-0 z-50 px-6 py-3.5 mb-8 border-b border-slate-800/80">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
@@ -29,7 +29,7 @@ export default function Header({ activeTab, setActiveTab }) {
         <div className="flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-inner">
           <button
             onClick={() => setActiveTab('student')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer ${
               activeTab === 'student'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -41,7 +41,7 @@ export default function Header({ activeTab, setActiveTab }) {
 
           <button
             onClick={() => setActiveTab('educator')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer ${
               activeTab === 'educator'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -52,10 +52,28 @@ export default function Header({ activeTab, setActiveTab }) {
           </button>
         </div>
 
-        {/* Security & Evidence Gate Badge */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Verified Source Grounded</span>
+        {/* Dynamic Security & Evidence Gate Badge */}
+        <div className="hidden lg:flex items-center transition-all">
+          {activeDocument ? (
+            activeDocument.document_id === 'doc_bst_chapter_01' ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Sample BST Demo</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="truncate max-w-[200px]" title={activeDocument.filename || activeDocument.title}>
+                  Verified Source Grounded
+                </span>
+              </div>
+            )
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-slate-400 text-xs font-medium">
+              <ShieldAlert className="w-4 h-4 text-slate-400" />
+              <span>Awaiting Document Source</span>
+            </div>
+          )}
         </div>
       </div>
     </header>

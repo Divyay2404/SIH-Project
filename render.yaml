@@ -19,4 +19,4 @@ services:
       - key: CORS_ORIGIN_REGEX
         value: "^https:\\/\\/.*\\.vercel\\.app$"
       - key: CORS_ORIGINS
-        value: "*"
+        value: "http://localhost:5173,http://localhost:3000,https://studyforge.vercel.app"

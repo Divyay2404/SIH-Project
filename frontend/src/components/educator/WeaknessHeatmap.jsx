@@ -485,8 +485,14 @@ export default function WeaknessHeatmap({
               <div>
                 <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                   <span>Class Weakness Heatmap & Concept Mastery</span>
-                  <span className="text-xs font-normal text-slate-400 px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">
-                    Live Diagnostics
+                  <span className={`text-xs font-normal px-2 py-0.5 rounded-full border ${
+                    (heatmapData === DEFAULT_FALLBACK_DATA || error || (heatmapData?.topic_heatmap && heatmapData.topic_heatmap.some(t => t.topic && t.topic.includes('BST'))))
+                      ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                      : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                  }`}>
+                    {(heatmapData === DEFAULT_FALLBACK_DATA || error || (heatmapData?.topic_heatmap && heatmapData.topic_heatmap.some(t => t.topic && t.topic.includes('BST'))))
+                      ? 'Sample Analytics (Demo / Fallback)'
+                      : 'Live Diagnostics'}
                   </span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">

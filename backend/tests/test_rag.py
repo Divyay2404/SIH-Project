@@ -22,6 +22,10 @@ EXPORT_DOCUMENT = {
 
 class TestSIHBackend(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        vector_store.load_demo_knowledge()
+
     def test_marks_aware_scaling_2_marks(self):
         result = qa_engine.answer_question("Explain BST deletion algorithm", marks=2)
         self.assertEqual(result["status"], "success")

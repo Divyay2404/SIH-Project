@@ -2,9 +2,13 @@
 Marks-Aware RAG QA Engine with Evidence-or-Abstain Security Gate.
 Implements dynamic 2-Mark, 5-Mark, and 10-Mark prompt schemas grounded strictly in retrieved context.
 Enforces evidence gating and document scoping to prevent hallucinations on off-topic/unsupported queries.
+Supports optional LLM API generation layer (OpenAI / Anthropic / Groq) when configured.
 """
 
+import json
+import os
 import re
+import urllib.request
 from typing import Dict, Any, Optional, List
 from app.rag.vector_store import vector_store
 
@@ -19,6 +23,9 @@ class MarksAwareRAGEngine:
     """
     def __init__(self, similarity_threshold: float = 0.40):
         self.similarity_threshold = similarity_threshold
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.llm_api_base = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
+        self.llm_model = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
     def answer_question(
         self,
@@ -58,12 +65,23 @@ class MarksAwareRAGEngine:
             additional_context = top_chunks[1].get("text", "")
 
         # Step 3: Format Marks-Aware Output according to rubric matrix strictly from retrieved context
-        formatted_answer = self._format_marks_aware_output(
-            question=clean_question,
-            context=primary_context,
-            additional_context=additional_context,
-            marks=marks
-        )
+        # Try LLM generation if configured, otherwise use high-fidelity synthesis engine
+        formatted_answer = None
+        if self.openai_api_key:
+            formatted_answer = self._generate_with_llm(
+                question=clean_question,
+                context=primary_context,
+                additional_context=additional_context,
+                marks=marks
+            )
+
+        if not formatted_answer:
+            formatted_answer = self._format_marks_aware_output(
+                question=clean_question,
+                context=primary_context,
+                additional_context=additional_context,
+                marks=marks
+            )
 
         doc_name = top_match.get("document_name") or "Uploaded_Document.pdf"
         page_num = top_match.get("page", 1)
@@ -95,6 +113,48 @@ class MarksAwareRAGEngine:
             "abstain": True,
             "citation": None
         }
+
+    def _generate_with_llm(
+        self,
+        question: str,
+        context: str,
+        additional_context: str = "",
+        marks: int = 5
+    ) -> Optional[str]:
+        """Calls external LLM endpoint to generate marks-aware answer strictly grounded in context."""
+        try:
+            prompt = (
+                f"You are StudyForge OS Academic Grading & Tutoring Engine.\n"
+                f"Strictly base your answer ONLY on the provided context. If the context does not contain the answer, say Abstention Gate Triggered.\n"
+                f"Marking Rubric: {marks} Marks.\n"
+                f"Context: {context}\n{additional_context}\n\n"
+                f"Question: {question}\n\n"
+                f"Format Requirements:\n"
+                f"- If 2 Marks: Header '**2-MARK ANSWER (Definition Scale)**', Definition (1-2 sentences), Example (concise, <50 words total).\n"
+                f"- If 5 Marks: Header '**5-MARK ANSWER (Concept Scale)**', Overview, Core Principles & Mechanics (3-4 bullets), Process Example / Code.\n"
+                f"- If 10 Marks: Header '**10-MARK ANSWER (Comprehensive Essay Scale)**', Sections 1-5 (Abstract, Principles, Algorithm, Math/Proof, Evaluative Conclusion)."
+            )
+
+            req_data = json.dumps({
+                "model": self.llm_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 800
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                f"{self.llm_api_base}/chat/completions",
+                data=req_data,
+                headers={
+                    "Authorization": f"Bearer {self.openai_api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data["choices"][0]["message"]["content"].strip()
+        except Exception:
+            return None
 
     def _extract_sentences(self, text: str) -> List[str]:
         """Splits raw context text into clean, non-empty propositional sentences."""
@@ -198,8 +258,6 @@ class MarksAwareRAGEngine:
 
         else:
             # 10-Mark Schema: Comprehensive Essay Scale
-            combined_text = f"{context} {additional_context}".strip()
-
             if is_bst and ("deletion" in context.lower() or "successor" in context.lower() or "delete" in context.lower()):
                 algorithm_diagram = (
                     "```\n"
@@ -284,7 +342,6 @@ class MarksAwareRAGEngine:
                 "### 5. Evaluative Conclusion & Recommendations\n"
                 f"{eval_conclusion}"
             )
-
 
 
 qa_engine = MarksAwareRAGEngine()

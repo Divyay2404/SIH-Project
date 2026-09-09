@@ -13,45 +13,51 @@ try:
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
+    canvas = None
 
 
-class NumberedCanvas(canvas.Canvas):
-    """Canvas for adding running headers and footers with accurate page counts."""
+if REPORTLAB_AVAILABLE and canvas is not None:
+    class NumberedCanvas(canvas.Canvas):
+        """Canvas for adding running headers and footers with accurate page counts."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.pages = []
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.pages = []
 
-    def showPage(self):
-        self.pages.append(dict(self.__dict__))
-        self._startPage()
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
 
-    def save(self):
-        num_pages = len(self.pages)
-        for page in self.pages:
-            self.__dict__.update(page)
-            self.draw_header_footer(num_pages)
-            super().showPage()
-        super().save()
+        def save(self):
+            num_pages = len(self.pages)
+            for page in self.pages:
+                self.__dict__.update(page)
+                self.draw_header_footer(num_pages)
+                super().showPage()
+            super().save()
 
-    def draw_header_footer(self, total_pages):
-        page_width, page_height = A4
-        self.saveState()
-        self.setFont("Helvetica-Bold", 8)
-        self.setFillColor(colors.HexColor("#4A5568"))
+        def draw_header_footer(self, total_pages):
+            page_width, page_height = A4
+            self.saveState()
+            self.setFont("Helvetica-Bold", 8)
+            self.setFillColor(colors.HexColor("#4A5568"))
 
-        # Running Header (positioned clearly above top frame boundary)
-        self.drawString(36, page_height - 35, "B.TECH REVISION HANDOUT | ACADEMIC STUDY GUIDE")
-        self.setStrokeColor(colors.HexColor("#CBD5E0"))
-        self.setLineWidth(0.5)
-        self.line(36, page_height - 40, page_width - 36, page_height - 40)
+            # Running Header (positioned clearly above top frame boundary)
+            self.drawString(36, page_height - 35, "B.TECH REVISION HANDOUT | ACADEMIC STUDY GUIDE")
+            self.setStrokeColor(colors.HexColor("#CBD5E0"))
+            self.setLineWidth(0.5)
+            self.line(36, page_height - 40, page_width - 36, page_height - 40)
 
-        # Running Footer (positioned clearly below bottom frame boundary)
-        self.line(36, 45, page_width - 36, 45)
-        self.setFont("Helvetica", 8)
-        self.drawString(36, 32, "Confidential - For Academic Use Only")
-        self.drawRightString(page_width - 36, 32, f"Page {self._pageNumber} of {total_pages}")
-        self.restoreState()
+            # Running Footer (positioned clearly below bottom frame boundary)
+            self.line(36, 45, page_width - 36, 45)
+            self.setFont("Helvetica", 8)
+            self.drawString(36, 32, "Confidential - For Academic Use Only")
+            self.drawRightString(page_width - 36, 32, f"Page {self._pageNumber} of {total_pages}")
+            self.restoreState()
+else:
+    class NumberedCanvas:  # type: ignore[no-redef]
+        """Fallback dummy canvas when ReportLab is unavailable."""
+        pass
 
 
 class StudyHandoutGenerator:

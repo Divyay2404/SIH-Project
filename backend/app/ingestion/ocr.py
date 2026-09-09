@@ -82,6 +82,29 @@ class OCRFallbackEngine:
             return True
         return False
 
+    def verify_ocr_runtime(self) -> Dict[str, Any]:
+        """
+        Deep diagnostic inspection of OCR runtime, Tesseract binary, tessdata directory,
+        and PyMuPDF OCR binding.
+        """
+        tesseract_bin = shutil.which("tesseract")
+        is_tessdata_valid = bool(self.tessdata and os.path.isdir(self.tessdata))
+        status = "ready" if (self.available and (tesseract_bin or is_tessdata_valid)) else "unavailable"
+        return {
+            "status": status,
+            "available": self.available,
+            "engine": "tesseract",
+            "language": self.language,
+            "tesseract_binary": tesseract_bin,
+            "tessdata_path": self.tessdata,
+            "tessdata_valid": is_tessdata_valid,
+            "message": (
+                "Tesseract OCR runtime active and ready for scanned PDF fallback."
+                if self.available
+                else "Tesseract OCR binary or tessdata not discovered; OCR fallback disabled."
+            )
+        }
+
     def ocr_page(self, page: Any, page_num: int) -> List[Dict[str, Any]]:
         """
         Performs localized OCR on a single PyMuPDF Page and extracts text blocks
@@ -134,3 +157,6 @@ class OCRFallbackEngine:
                 self.language,
             )
             return []
+
+
+ocr_engine = OCRFallbackEngine()
