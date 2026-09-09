@@ -1,15 +1,3 @@
-"""
-ReportLab Printable Double-Column Handout Exporter.
-Compiles professional double-column B.Tech study guides, revision handouts,
-and marks-aligned practice questions dynamically from uploaded course materials.
-
-Acceptance Criteria:
-- Formatted double-column academic layout with header, course metadata,
-  key definitions, and practice questions (2/5/10 marks).
-- Generates clean printable PDF without text clipping or overlapping elements.
-- Stress-tested against multi-page outputs.
-"""
-
 import io
 import re
 from typing import Any, Dict, List, Optional
@@ -82,31 +70,42 @@ class StudyHandoutGenerator:
 
     @staticmethod
     def _extract_subtopic_and_body(chunk_text: Any) -> tuple[str, str]:
-        """Return a clean sub-topic label and paragraph body for the handout.
+        """Return a clean sub-topic title and paragraph body.
 
-        A raw chunk can be a topic line with an explanatory paragraph below it,
-        or a legacy section label such as 'Section 60: Detailed topic'. We strip
-        the legacy section and page label from the heading so the rendered result
-        is a natural sub-topic title followed by the paragraph body.
+        A raw chunk may begin with a numbered or bullet style marker, for example
+        "1. Process Scheduling" or "• Process Scheduling". The marker should not
+        become a standalone heading, so this helper removes the marker from the
+        topic label and keeps the written explanation in the paragraph body.
         """
         raw_text = str(chunk_text or "")
         lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
         if not lines:
             return "Topic", ""
 
-        topic = lines[0]
+        # If the first line is just a numeric or bullet marker, attach the next
+        # non-empty line as the actual topic title.
+        if re.fullmatch(r"^\d+[\.)]$|^[-•]$", lines[0]):
+            if len(lines) > 1:
+                topic = lines[1]
+                body_lines = lines[2:]
+            else:
+                return "Topic", ""
+        else:
+            topic = lines[0]
+            body_lines = lines[1:]
+
+        # Remove numeric/bullet markers embedded in the first topic line, such
+        # as "1. Process Scheduling" or "2) Context Switching".
+        topic = re.sub(r"^\s*\d+[\.\)]\s*", "", topic)
+        topic = re.sub(r"^\s*[-•]\s*", "", topic)
+
         # Remove old section-like prefixes from the display heading.
         topic = re.sub(r"^\s*Section\s+\d+\s*:\s*", "", topic, flags=re.IGNORECASE)
         topic = re.sub(r"^\s*Topic\s*[:\-]\s*", "", topic, flags=re.IGNORECASE)
 
-        body_lines = lines[1:]
-        if body_lines:
-            body = " ".join(body_lines)
-        else:
-            # Preserve the same topic line as the explanatory paragraph when the
-            # note contains only the heading and no paragraph body.
-            body = ""
-
+        # Trim remaining empty lines and join explanation paragraphs.
+        body_lines = [line for line in body_lines if line.strip()]
+        body = " ".join(body_lines) if body_lines else ""
         return topic, body
 
     def _generate_practice_questions(self, title: str, concepts: list, headings: list) -> Dict[int, List[str]]:
