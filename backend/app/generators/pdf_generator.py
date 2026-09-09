@@ -152,27 +152,41 @@ class StudyHandoutGenerator:
             story.append(Paragraph(clean_summary, summary_style))
             story.append(Spacer(1, 4))
 
-        # Two-column layout for chunk sections
+        # Double-column layout for chunk sections using a multi-row grid
+        # Each row contains at most 2 chunks, allowing ReportLab to split between rows across pages seamlessly
         if chunks:
-            columns: List[List[Any]] = [[], []]
-            for index, chunk in enumerate(chunks):
-                dest = columns[index % 2]
-                page_info = f" (Page {chunk.get('page')})" if chunk.get("page") else ""
-                dest.append(Paragraph(f"<b>Section {index + 1}{page_info}</b>", heading_style))
-                clean_chunk_text = self._safe_text(chunk.get("text", "")).replace("\n", "<br/>")
-                dest.append(Paragraph(clean_chunk_text, body_style))
+            table_data = []
+            for i in range(0, len(chunks), 2):
+                row_cells = []
+                for j in range(2):
+                    if i + j < len(chunks):
+                        chunk = chunks[i + j]
+                        page_info = f" (Page {chunk.get('page')})" if chunk.get("page") else ""
+                        raw_text = self._safe_text(chunk.get("text", "")).strip()
+                        clean_text = raw_text.replace("\n", "<br/>")
+                        cell_flowables = [
+                            Paragraph(f"<b>Section {i + j + 1}{page_info}</b>", heading_style),
+                            Paragraph(clean_text, body_style),
+                            Spacer(1, 4),
+                        ]
+                        row_cells.append(cell_flowables)
+                    else:
+                        row_cells.append("")
+                table_data.append(row_cells)
 
-            story.append(Table(
-                [[columns[0], columns[1]]],
-                colWidths=[265, 265],
-                style=TableStyle([
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LINEBEFORE", (1, 0), (1, 0), 0.5, colors.HexColor("#cbd5e1")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ])
-            ))
-            story.append(Spacer(1, 8))
+            if table_data:
+                story.append(Table(
+                    table_data,
+                    colWidths=[265, 265],
+                    style=TableStyle([
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LINEBEFORE", (1, 0), (1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ])
+                ))
+                story.append(Spacer(1, 8))
 
         # Important Concepts / Definitions if present
         concepts = document.get("important_concepts") or document.get("definitions")
