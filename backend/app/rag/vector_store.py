@@ -4,7 +4,25 @@ Stores chunk text alongside page numbers, document IDs, and bounding box coordin
 """
 
 import math
+import re
 from typing import List, Dict, Any, Optional
+
+STOP_WORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
+    "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being",
+    "below", "between", "both", "but", "by", "can", "can't", "cannot", "could",
+    "did", "do", "does", "doing", "don't", "down", "during", "each", "few", "for",
+    "from", "further", "had", "has", "have", "having", "he", "her", "here", "hers",
+    "herself", "him", "himself", "his", "how", "i", "if", "in", "into", "is",
+    "isn't", "it", "its", "itself", "let's", "me", "more", "most", "my", "myself",
+    "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought",
+    "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should",
+    "so", "some", "such", "than", "that", "the", "their", "theirs", "them",
+    "themselves", "then", "there", "these", "they", "this", "those", "through",
+    "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "were",
+    "weren't", "what", "when", "where", "which", "while", "who", "whom", "why",
+    "with", "won't", "would", "you", "your", "yours", "yourself", "yourselves"
+}
 
 
 class VectorStoreManager:
@@ -60,6 +78,18 @@ class VectorStoreManager:
             chunk["keywords"] = [w.lower() for w in chunk["text"].split() if len(w) > 3]
             self.documents.append(chunk)
 
+    def has_document(self, document_id: str) -> bool:
+        """Confirms whether chunks associated with document_id exist in vector memory."""
+        if not document_id:
+            return False
+        return any(doc.get("document_id") == document_id for doc in self.documents)
+
+    def get_document_chunks(self, document_id: str) -> List[Dict[str, Any]]:
+        """Returns all indexed chunks scoped to document_id."""
+        if not document_id:
+            return []
+        return [doc for doc in self.documents if doc.get("document_id") == document_id]
+
     def search(self, query: str, document_id: Optional[str] = None, top_k: int = 2) -> List[Dict[str, Any]]:
         """
         Enforces strict document_id filtering and calculates similarity scores
@@ -68,10 +98,13 @@ class VectorStoreManager:
         If document_id is provided, only chunks matching document_id are searched.
         If no chunks match document_id, an empty list is returned.
         """
-        query_text = (query or "").strip().lower()
-        query_words = set(query_text.split())
-        if not query_words:
+        raw_tokens = [w.lower() for w in re.findall(r'\b[a-zA-Z0-9_-]+\b', query or "")]
+        if not raw_tokens:
             return []
+
+        # Separate domain content words from general stop words
+        content_words = [w for w in raw_tokens if w not in STOP_WORDS and len(w) > 1]
+        search_tokens = content_words if content_words else raw_tokens
 
         # Enforce strict document_id filtering if specified
         if document_id and document_id != "all":
@@ -85,20 +118,25 @@ class VectorStoreManager:
         scored_chunks = []
         for doc in candidate_docs:
             text = doc.get("text", "").lower()
-            keywords = set(doc.get("keywords", []))
+            doc_words = set(re.findall(r'\b[a-zA-Z0-9_-]+\b', text))
+            keywords = set(k.lower() for k in doc.get("keywords", []))
 
-            # Term overlap similarity calculation
-            matches = sum(1 for w in query_words if w in text or w in keywords)
-            score = round(matches / max(len(query_words), 1), 2)
+            # Word-level overlap similarity calculation
+            matches = sum(1 for w in search_tokens if w in doc_words or w in keywords)
+            if matches == 0:
+                scored_chunks.append({**doc, "score": 0.0})
+                continue
 
-            # Boost score for relevant keyword and phrase matches
-            significant_terms = [w for w in query_words if len(w) > 3]
+            score = matches / len(search_tokens)
+
+            # Boost score for domain terms (len > 3) that matched
+            significant_terms = [w for w in search_tokens if len(w) > 3]
             if significant_terms:
-                term_hits = sum(1 for w in significant_terms if w in text or w in keywords)
+                term_hits = sum(1 for w in significant_terms if w in doc_words or w in keywords)
                 if term_hits > 0:
                     score += min(0.35 * (term_hits / len(significant_terms)), 0.45)
 
-            score = min(score, 0.98)
+            score = min(round(score, 2), 0.98)
             scored_chunks.append({**doc, "score": score})
 
         # Sort by score descending

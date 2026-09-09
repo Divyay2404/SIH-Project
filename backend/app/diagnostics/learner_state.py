@@ -82,7 +82,7 @@ class LearnerStateEngine:
                 "title": "Terminology Confusion",
                 "desc": "Confused In-Order Successor with Pre-Order Traversal.",
                 "analogy": "💡 **Terminology Tip**: In-Order means 'Left -> Root -> Right' (gives sorted order). Pre-Order means 'Root -> Left -> Right'."
-            }
+            },
             4: {
                 "type": "careless_error",
                 "title": "Careless Error",

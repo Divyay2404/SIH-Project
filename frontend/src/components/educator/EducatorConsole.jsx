@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Upload,
   Presentation,
   FileText,
   CheckCircle,
+  CheckCircle2,
   Sparkles,
   FolderPlus,
   Plus,
@@ -26,7 +27,14 @@ import {
   HelpCircle,
   MessageSquare,
   ArrowRight,
-  Sparkle
+  Sparkle,
+  Activity,
+  Cpu,
+  Bookmark,
+  ListChecks,
+  Hash,
+  Compass,
+  RefreshCw
 } from 'lucide-react';
 import WeaknessHeatmap from './WeaknessHeatmap';
 import { apiUrl } from '../../config/api';
@@ -47,16 +55,15 @@ const SLIDE_CATEGORIES = [
 ];
 
 /**
- * Generates an initial curriculum-aligned 10-slide educational lecture deck
- * tailored to the provided textbook topic title.
+ * Generates an initial demo/sample 10-slide deck clearly labeled for demonstration.
  */
-function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invariants') {
+function generateSampleSlideDeck(topicTitle = 'Binary Search Trees & Structural Invariants') {
   return [
     {
       id: 'slide-1',
       category: 'Title Slide',
       title: topicTitle,
-      subtitle: 'Curriculum Briefing & Educational Lecture Outline',
+      subtitle: 'Curriculum Briefing & Educational Lecture Outline (Sample)',
       bullets: [
         `Core syllabus module covering foundational principles of ${topicTitle}.`,
         'Rigorous examination of theoretical models, computational complexity, and edge cases.',
@@ -93,7 +100,7 @@ function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invari
         'Reviewing foundational literature and historical engineering context.',
         'Mapping conceptual relationships to predictable empirical outcomes.'
       ],
-      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nExplore the theoretical foundations and axiomatic parameters.\n\nEmphasize how these principles serve as the prerequisite framework for understanding the rest of the material. Encourage students to relate these foundational rules back to real-world observations and previous data structures coursework.`,
+      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nExplore the theoretical foundations and axiomatic parameters.\n\nEmphasize how these principles serve as the prerequisite framework for understanding the rest of the material. Encourage students to relate these foundational rules back to real-world observations and previous coursework.`,
       diagram: false
     },
     {
@@ -105,8 +112,7 @@ function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invari
         'Ordered tree traversal techniques: In-Order, Pre-Order, and Post-Order traversal patterns.',
         'Binary search property guarantee: Left Subtree Key < Root Key < Right Subtree Key.',
         'Logarithmic time complexity O(log N) for balanced trees vs worst-case linear O(N) degenerate trees.',
-        'Recursive vs iterative implementations and call-stack overhead considerations.',
-        'Pointer manipulation invariants during key lookup and traversal validation.'
+        'Recursive vs iterative implementations and call-stack overhead considerations.'
       ],
       notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nDetailed Breakdown for Core Traversal Mechanics.\n\nInstructors should unpack these core bullet points line by line. Explain the underlying principles and empirical findings associated with each statement. Be sure to address common student misconceptions regarding boundaries and operational parameters.`,
       diagram: false
@@ -115,15 +121,14 @@ function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invari
       id: 'slide-5',
       category: 'Concept Breakdown',
       title: 'Advanced Mutation: Node Deletion & Edge Cases',
-      subtitle: 'Maintaining tree balance and structural integrity across edge cases',
+      subtitle: 'Maintaining structural integrity across edge cases',
       bullets: [
         'Case 1: Deleting a leaf node with zero child pointers (immediate removal).',
         'Case 2: Deleting an internal node with a single child (direct parent pointer bypass).',
         'Case 3: Deleting a node with two children requiring In-Order Successor substitution.',
-        'In-Order Successor determination: Smallest key in the right subtree.',
-        'Classroom Alert: 45% of students exhibit conceptual confusion on In-Order Successor replacement.'
+        'In-Order Successor determination: Smallest key in the right subtree.'
       ],
-      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nCRITICAL DIAGNOSTIC FOCUS:\nOur class weakness analytics indicate 45% of students struggle with Case 3 deletion.\n\nDedicate at least 7 minutes to trace the in-order successor swap on the chalkboard or interactive whiteboard. Demonstrate why swapping the smallest element in the right subtree guarantees the BST invariant is preserved without re-sorting the rest of the tree.`,
+      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nCRITICAL DIAGNOSTIC FOCUS:\nOur class weakness analytics indicate students struggle with Case 3 deletion.\n\nDedicate at least 7 minutes to trace the in-order successor swap on the whiteboard. Demonstrate why swapping the smallest element in the right subtree guarantees the BST invariant is preserved without re-sorting the rest of the tree.`,
       diagram: false
     },
     {
@@ -151,54 +156,51 @@ function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invari
         },
         {
           stage: '3. IMPACT',
-          title: 'Validated State',
-          description: 'Synthesize primary takeaways, invariant guarantees, and search space optimization.'
+          title: 'Target Equilibrium',
+          description: 'Synthesize verified outputs, invariant preservation, and asymptotic guarantees.'
         }
       ]
     },
     {
       id: 'slide-7',
       category: 'Real-World Applications',
-      title: 'Practical Applications & Systems Architecture',
-      subtitle: 'Translating academic theory into production engineering deployments',
+      title: 'Real-World Applications & Systems Architecture',
+      subtitle: 'Translating theory into enterprise database and compiler design',
       bullets: [
-        'Database index engines: B-Tree and B+ Tree derivations in PostgreSQL and MySQL InnoDB.',
-        'Linux kernel virtual memory management using red-black balanced trees.',
-        'In-memory routing tables and fast packet filtering in network switches.',
-        'Evaluating performance metrics under practical hardware caching constraints.',
-        'Addressing concurrency challenges: Lock striping and optimistic reader-writer synchronization.'
+        'Relational database indexing engines (B-Tree and B+Tree evolution from BST principles).',
+        'Memory management allocation tables and dynamic heap balancing mechanisms.',
+        'Routing table optimization in high-throughput computer network switches.',
+        'Symbol table lookup in compiler lexical analysis and intermediate code generation.'
       ],
-      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nBridge theory and practice by discussing these real-world case studies.\n\nAsk students how the abstract principles covered earlier apply directly to these practical scenarios, specifically asking why production database engines use B-Trees instead of standard BSTs (disk block I/O efficiency).`,
+      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nBridge theory and practice by discussing these real-world deployments. Ask students how the abstract principles covered earlier apply directly to database systems like PostgreSQL and MySQL.`,
       diagram: false
     },
     {
       id: 'slide-8',
       category: 'Critical Analysis',
       title: 'Critical Analysis & Trade-Off Matrix',
-      subtitle: 'Comparative inquiry, failure modes, and architectural trade-offs',
+      subtitle: 'Evaluating performance boundaries, degenerate cases, and trade-offs',
       bullets: [
-        `What primary engineering constraint is resolved by ${topicTitle}?`,
-        'How does this methodology compare with hash maps and B-Tree alternatives?',
-        'What specific failure modes or edge cases occur during skewed input insertion?',
-        'Diagnostic Inquiry: Explain the primary trade-off between search speed and rebalance overhead.',
-        'How can system stability and memory fragmentation be verified under high concurrent load?'
+        'Skewed Tree Degradation: Sorted input vectors collapse tree height to O(N).',
+        'Recursive Call Overhead: Auxiliary stack depth risks stack-overflow on deep structures.',
+        'Concurrency Constraints: Locking individual nodes vs tree-wide mutual exclusion.',
+        'Memory Footprint: Dual-pointer overhead (left/right pointers) vs contiguous flat arrays.'
       ],
-      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nFacilitate an interactive discussion using these critical analysis questions.\n\nEncourage students to debate the trade-offs and consider potential failure modes. Call upon 2-3 random students to explain why unbalanced insertion of sorted input degrades tree performance to linked list O(N) complexity.`,
+      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nFacilitate an interactive discussion using these critical analysis questions. Encourage students to debate the trade-offs and consider potential failure modes.`,
       diagram: false
     },
     {
       id: 'slide-9',
       category: 'Assessment Standards',
-      title: 'Assessment Standards & Exam Rubrics',
-      subtitle: 'Key benchmarks for 2-Mark, 5-Mark, and 10-Mark university evaluations',
+      title: 'Assessment Standards & Rubric Guidelines',
+      subtitle: 'Expected solution patterns, marks breakdown, and rubric thresholds',
       bullets: [
-        '2-Mark Benchmark: 1-2 sentence definition of BST invariant + 1 valid diagram counterexample.',
-        '5-Mark Benchmark: Algorithmic steps for node insertion with time complexity derivation.',
-        '10-Mark Benchmark: Comprehensive walkthrough of deletion Case 3 with C++ code & mathematical proof.',
-        'Problem-solving rubrics and expected step-by-step proof formulations.',
-        'Self-assessment practice questions provided in the companion study handout.'
+        '2-Mark Question: Define Binary Search Tree property with strict inequality bounds.',
+        '5-Mark Question: Explain Case 3 node deletion algorithm with step-by-step pointer diagram.',
+        '10-Mark Question: Provide full asymptotic analysis and prove O(log N) average search time.',
+        'Rubric Alert: Deductions occur when duplicate key handling or null base cases are omitted.'
       ],
-      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nReview evaluation criteria and assessment expectations with the class.\n\nEnsure students understand what is required to achieve mastery on upcoming exams. Point out that the 10-mark question requires both the theoretical proof and the exact pointer manipulation code snippet.`,
+      notes: `TEACHER SPEAKER SCRIPT & LECTURE GUIDE:\n\nReview evaluation criteria and assessment expectations with the class. Ensure students understand what is required to achieve mastery on upcoming exams. Point out that the 10-mark question requires both the theoretical proof and the exact pointer manipulation code snippet.`,
       diagram: false
     },
     {
@@ -220,13 +222,19 @@ function generateSlideDeck(topicTitle = 'Binary Search Trees & Structural Invari
 }
 
 export default function EducatorConsole() {
+  // Backend Connectivity State
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'connected' | 'unavailable' | 'checking'
+  const [backendInfo, setBackendInfo] = useState(null);
+
+  // Upload & Document State
   const [uploadStatus, setUploadStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPhase, setUploadPhase] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [isUploadedDocument, setIsUploadedDocument] = useState(false);
 
   // Slide Deck State
-  const [slides, setSlides] = useState(() => generateSlideDeck());
+  const [slides, setSlides] = useState(() => generateSampleSlideDeck());
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [editorTab, setEditorTab] = useState('content'); // 'content' | 'notes'
   const [previewMode, setPreviewMode] = useState('split'); // 'split' | 'presentation'
@@ -249,6 +257,29 @@ export default function EducatorConsole() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  // Check Backend Service Health
+  const checkBackendHealth = useCallback(async () => {
+    setBackendStatus('checking');
+    try {
+      const res = await fetch(apiUrl('/api/health'), {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackendStatus('connected');
+        setBackendInfo(data);
+      } else {
+        setBackendStatus('unavailable');
+      }
+    } catch (err) {
+      setBackendStatus('unavailable');
+    }
+  }, []);
+
+  useEffect(() => {
+    checkBackendHealth();
+  }, [checkBackendHealth]);
 
   // Handle Drag & Drop Events
   const handleDragEnter = (e) => {
@@ -292,29 +323,33 @@ export default function EducatorConsole() {
     if (!isPdf) {
       setNotification({
         type: 'error',
-        message: 'Please upload a valid PDF document (e.g. textbook chapter or syllabus).'
+        message: 'Invalid file format. Educator uploads support PDF course materials and lecture notes only.'
+      });
+      return;
+    }
+
+    if (file.size === 0) {
+      setNotification({
+        type: 'error',
+        message: 'The uploaded PDF file is empty (0 bytes). Please upload a valid document.'
       });
       return;
     }
 
     const formattedSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
     setUploading(true);
-    setUploadPhase('Streaming document bytes to ingestion engine...');
-    setUploadStatus({
-      name: file.name,
-      size: formattedSize,
-      status: 'Extracting curriculum hierarchy and coordinate metadata...'
-    });
+    setUploadPhase('Uploading PDF to gateway...');
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      setUploadPhase('PyMuPDF parsing, bounding box extraction & layout cleaning...');
+      setUploadPhase('Processing PDF with PyMuPDF & OCR...');
       let response;
       try {
         response = await fetch(apiUrl('/api/ingest'), { method: 'POST', body: formData });
       } catch (networkErr) {
+        setBackendStatus('unavailable');
         throw new Error('Backend service unreachable. Please ensure the FastAPI server is running.');
       }
 
@@ -322,67 +357,80 @@ export default function EducatorConsole() {
       const isJson = contentType.includes('application/json');
 
       if (!response.ok) {
+        let errorMessage = `Server error HTTP ${response.status}`;
         if (isJson) {
           try {
             const errorPayload = await response.json();
-            throw new Error(errorPayload.detail || `Ingestion error (HTTP ${response.status})`);
+            errorMessage = errorPayload.detail || errorPayload.message || errorMessage;
           } catch (jsonErr) {
-            if (jsonErr.message && !jsonErr.message.includes('Unexpected token')) {
-              throw jsonErr;
-            }
+            // Ignore JSON parse failure on non-JSON payload
+          }
+        } else {
+          if (response.status === 404) {
+            errorMessage = 'Server unavailable (HTTP 404): Ingestion endpoint not found.';
+          } else if ([502, 503, 504].includes(response.status)) {
+            errorMessage = `Gateway error (HTTP ${response.status}). Ingestion service temporarily unavailable.`;
           }
         }
-        throw new Error(`Server returned error HTTP ${response.status}.`);
+        throw new Error(errorMessage);
       }
 
       if (!isJson) {
         throw new Error('Unexpected response format received from ingestion gateway.');
       }
 
-      setUploadPhase('Generating structured slide outline & pedagogical notes...');
+      setUploadPhase('Analyzing Structure, Headings & Concepts...');
       const payload = await response.json();
 
+      setUploadPhase('Indexing in Vector DB & Generating Learning Content...');
+      setBackendStatus('connected');
+
       const documentTitle = payload.title || file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+      const chunksExtracted = payload.chunks_extracted || 0;
+      const pagesProcessed = payload.pages_processed || 1;
+      const isIndexed = payload.indexing_confirmed === true;
 
       setUploadStatus({
         name: file.name,
         size: formattedSize,
         documentId: payload.document_id,
         title: documentTitle,
-        chunksExtracted: payload.chunks_extracted || 12,
-        pagesProcessed: payload.pages_processed || 1,
-        status: `${payload.chunks_extracted || 12} sections extracted and ready for presentation`
+        chunksExtracted: chunksExtracted,
+        pagesProcessed: pagesProcessed,
+        indexingConfirmed: isIndexed,
+        summary: payload.summary,
+        importantConcepts: payload.important_concepts || [],
+        sections: payload.sections || [],
+        importantPortions: payload.important_portions || [],
+        status: 'Ready'
       });
 
-      // Dynamically generate slide deck tailored to uploaded document title
-      const newDeck = generateSlideDeck(documentTitle);
-      setSlides(newDeck);
+      // Populate document-specific slide deck from backend analysis
+      if (Array.isArray(payload.slides) && payload.slides.length > 0) {
+        setSlides(payload.slides);
+      } else {
+        // Fallback to sample generator only if backend analysis omitted slides
+        setSlides(generateSampleSlideDeck(documentTitle));
+      }
+      setIsUploadedDocument(true);
       setActiveSlideIndex(0);
 
       setNotification({
         type: 'success',
-        message: `Successfully indexed "${documentTitle}"! 10 lecture slides with speaker notes generated.`
+        message: `Successfully indexed "${documentTitle}"! ${chunksExtracted} sections extracted across ${pagesProcessed} page(s).`
       });
     } catch (err) {
-      // Graceful fallback for offline demo / local testing
-      const fallbackTitle = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-      const fallbackDeck = generateSlideDeck(fallbackTitle);
-      setSlides(fallbackDeck);
-      setActiveSlideIndex(0);
-
       setUploadStatus({
         name: file.name,
         size: formattedSize,
-        documentId: `doc_offline_${Date.now()}`,
-        title: fallbackTitle,
-        chunksExtracted: 10,
-        pagesProcessed: 2,
-        status: 'Extracted locally (Backend server offline)'
+        title: file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+        error: err.message || 'Failed to process document'
       });
+      setIsUploadedDocument(false);
 
       setNotification({
-        type: 'info',
-        message: `Parsed document outline locally for "${fallbackTitle}". Slides are ready for editing and preview.`
+        type: 'error',
+        message: `Ingestion failed: ${err.message}`
       });
     } finally {
       setUploading(false);
@@ -407,100 +455,89 @@ export default function EducatorConsole() {
 
   // Trigger PPT Export
   const handleExportPPT = async () => {
-    setDownloadingPpt(true);
     const docId = uploadStatus?.documentId;
     const presentationTitle = uploadStatus?.title || slides[0]?.title || 'Lecture_Presentation';
 
+    if (!docId) {
+      setNotification({
+        type: 'error',
+        message: 'No active document uploaded. Please upload a course PDF before exporting the presentation deck.'
+      });
+      return;
+    }
+
+    setDownloadingPpt(true);
     try {
-      if (docId && !docId.startsWith('doc_offline_')) {
-        const res = await fetch(apiUrl(`/api/export/ppt?document_id=${encodeURIComponent(docId)}`));
-        if (res.ok) {
-          const blob = await res.blob();
-          downloadBlob(blob, `Lecture_${safeFilename(presentationTitle)}.pptx`);
-          setNotification({
-            type: 'success',
-            message: `PowerPoint deck "Lecture_${safeFilename(presentationTitle)}.pptx" downloaded successfully!`
-          });
-          return;
+      const res = await fetch(apiUrl(`/api/export/ppt?document_id=${encodeURIComponent(docId)}`));
+      if (!res.ok) {
+        let errText = `Export error HTTP ${res.status}`;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          try {
+            const errJson = await res.json();
+            errText = errJson.detail || errText;
+          } catch (e) {}
         }
+        throw new Error(errText);
       }
 
-      // Offline / customized deck client export fallback
-      const deckText = slides.map((s, idx) => (
-        `==================================================\n` +
-        `SLIDE ${idx + 1}: ${s.title.toUpperCase()}\n` +
-        `Category: ${s.category}\n` +
-        `Subtitle: ${s.subtitle}\n` +
-        `--------------------------------------------------\n` +
-        `BULLET POINTS:\n${s.bullets.map(b => `  • ${b}`).join('\n')}\n\n` +
-        `TEACHER SPEAKER NOTES & LECTURE GUIDE:\n${s.notes}\n` +
-        `==================================================\n\n`
-      )).join('\n');
-
-      const blob = new Blob([deckText], { type: 'text/plain;charset=utf-8' });
-      downloadBlob(blob, `Lecture_${safeFilename(presentationTitle)}_Deck_Outline.txt`);
+      const blob = await res.blob();
+      downloadBlob(blob, `Lecture_${safeFilename(presentationTitle)}.pptx`);
       setNotification({
         type: 'success',
-        message: `Exported editable presentation outline for "${presentationTitle}".`
+        message: `PowerPoint deck "Lecture_${safeFilename(presentationTitle)}.pptx" downloaded successfully!`
       });
     } catch (err) {
       setNotification({
         type: 'error',
-        message: `Export failed: ${err.message}`
+        message: `PPT Export failed: ${err.message}`
       });
     } finally {
-      setTimeout(() => setDownloadingPpt(false), 800);
+      setDownloadingPpt(false);
     }
   };
 
   // Trigger PDF Handout Export
   const handleExportPDF = async () => {
-    setDownloadingPdf(true);
     const docId = uploadStatus?.documentId;
     const presentationTitle = uploadStatus?.title || slides[0]?.title || 'Study_Guide';
 
+    if (!docId) {
+      setNotification({
+        type: 'error',
+        message: 'No active document uploaded. Please upload a course PDF before exporting the study handout.'
+      });
+      return;
+    }
+
+    setDownloadingPdf(true);
     try {
-      if (docId && !docId.startsWith('doc_offline_')) {
-        const res = await fetch(apiUrl(`/api/export/pdf?document_id=${encodeURIComponent(docId)}`));
-        if (res.ok) {
-          const blob = await res.blob();
-          downloadBlob(blob, `Study_Guide_${safeFilename(presentationTitle)}.pdf`);
-          setNotification({
-            type: 'success',
-            message: `Study handout "Study_Guide_${safeFilename(presentationTitle)}.pdf" downloaded successfully!`
-          });
-          return;
+      const res = await fetch(apiUrl(`/api/export/pdf?document_id=${encodeURIComponent(docId)}`));
+      if (!res.ok) {
+        let errText = `Export error HTTP ${res.status}`;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          try {
+            const errJson = await res.json();
+            errText = errJson.detail || errText;
+          } catch (e) {}
         }
+        throw new Error(errText);
       }
 
-      // Offline fallback handout generator
-      const handoutText = (
-        `========================================================================\n` +
-        `B.TECH ACADEMIC STUDY GUIDE & REVISION HANDOUT\n` +
-        `Subject: ${presentationTitle}\n` +
-        `Generated by StudyForge OS AI Engine\n` +
-        `========================================================================\n\n` +
-        slides.map((s, idx) => (
-          `SECTION ${idx + 1}: ${s.title}\n` +
-          `Classification: ${s.category}\n` +
-          `${s.bullets.map(b => `  [✓] ${b}`).join('\n')}\n\n` +
-          `Teacher Guidance:\n${s.notes}\n\n`
-        )).join('------------------------------------------------------------------------\n')
-      );
-
-      const blob = new Blob([handoutText], { type: 'text/plain;charset=utf-8' });
-      downloadBlob(blob, `Study_Guide_${safeFilename(presentationTitle)}.txt`);
+      const blob = await res.blob();
+      downloadBlob(blob, `Study_Guide_${safeFilename(presentationTitle)}.pdf`);
       setNotification({
         type: 'success',
-        message: `Downloaded comprehensive study guide handout for "${presentationTitle}".`
+        message: `Study handout "Study_Guide_${safeFilename(presentationTitle)}.pdf" downloaded successfully!`
       });
     } catch (err) {
       setNotification({
         type: 'error',
-        message: `Export error: ${err.message}`
+        message: `Handout export failed: ${err.message}`
       });
     } finally {
-      setTimeout(() => setDownloadingPdf(false), 800);
+      setDownloadingPdf(false);
     }
   };
 
@@ -510,6 +547,8 @@ export default function EducatorConsole() {
       title: uploadStatus?.title || slides[0]?.title,
       exportedAt: new Date().toISOString(),
       slideCount: slides.length,
+      isDocumentGrounded: isUploadedDocument,
+      documentId: uploadStatus?.documentId || null,
       slides: slides
     }, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -631,13 +670,21 @@ export default function EducatorConsole() {
   };
 
   const handleResetOutline = () => {
-    const topic = uploadStatus?.title || 'Binary Search Trees & Structural Invariants';
-    setSlides(generateSlideDeck(topic));
+    if (uploadStatus && !uploadStatus.error && Array.isArray(uploadStatus.slides)) {
+      setSlides(uploadStatus.slides);
+      setNotification({
+        type: 'info',
+        message: `Slide outline reset to document analysis for "${uploadStatus.title}".`
+      });
+    } else {
+      setSlides(generateSampleSlideDeck());
+      setIsUploadedDocument(false);
+      setNotification({
+        type: 'info',
+        message: 'Slide outline reset to default sample curriculum template.'
+      });
+    }
     setActiveSlideIndex(0);
-    setNotification({
-      type: 'info',
-      message: 'Slide outline reset to default extracted curriculum template.'
-    });
   };
 
   // Calculate estimated speaking duration (approx 130 words per min)
@@ -680,14 +727,44 @@ export default function EducatorConsole() {
       <div className="glass-panel p-6 rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 shadow-xl">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5">
               <Sparkles className="w-5 h-5 text-amber-400" />
               <h2 className="text-lg font-bold text-white tracking-tight">
                 Educator Slide Generator & Presentation Control Hub
               </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Single Source of Truth
-              </span>
+
+              {/* Backend Connectivity Status Pill */}
+              {backendStatus === 'connected' ? (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Backend Connected
+                </span>
+              ) : backendStatus === 'checking' ? (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                  Checking Backend...
+                </span>
+              ) : (
+                <button
+                  onClick={checkBackendHealth}
+                  title="Click to retry backend connection"
+                  className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1 hover:bg-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                  Backend Unavailable (Retry)
+                </button>
+              )}
+
+              {/* Document Status Tag */}
+              {isUploadedDocument ? (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  Document Grounded
+                </span>
+              ) : (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Demo / Sample Content
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
               Upload textbook chapters or syllabus documents to automatically compile synchronized PowerPoint presentation decks and printable ReportLab revision handouts with embedded pedagogical speaker scripts.
@@ -698,10 +775,10 @@ export default function EducatorConsole() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleExportPPT}
-              disabled={downloadingPpt}
+              disabled={downloadingPpt || !uploadStatus?.documentId}
               id="export-ppt-btn"
-              title="Download editable .pptx presentation deck"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-semibold text-xs shadow-lg shadow-orange-600/20 transition-all duration-150 cursor-pointer disabled:opacity-50"
+              title={uploadStatus?.documentId ? "Download editable .pptx presentation deck" : "Upload a document to enable PowerPoint export"}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-semibold text-xs shadow-lg shadow-orange-600/20 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Presentation className="w-4 h-4" />
               <span>{downloadingPpt ? 'Generating Deck...' : 'Generate Lecture Deck (.pptx)'}</span>
@@ -709,10 +786,10 @@ export default function EducatorConsole() {
 
             <button
               onClick={handleExportPDF}
-              disabled={downloadingPdf}
+              disabled={downloadingPdf || !uploadStatus?.documentId}
               id="export-pdf-btn"
-              title="Download printable .pdf study handout"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/20 transition-all duration-150 cursor-pointer disabled:opacity-50"
+              title={uploadStatus?.documentId ? "Download printable .pdf study handout" : "Upload a document to enable Study Handout export"}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs shadow-lg shadow-indigo-600/20 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <FileText className="w-4 h-4" />
               <span>{downloadingPdf ? 'Exporting Handout...' : 'Export Study Handout (.pdf)'}</span>
@@ -731,13 +808,13 @@ export default function EducatorConsole() {
       </div>
 
       {/* Syllabus & Textbook Document Ingestion Hub */}
-      <div className="glass-panel p-6 rounded-2xl border border-slate-800 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-panel p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
+        <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
             <Upload className="w-4 h-4 text-indigo-400" />
             <span>Curriculum Material Upload & Structure-Aware Ingestion Hub</span>
           </h3>
-          <span className="text-[11px] text-slate-400">Accepted formats: PDF Textbook Chapters, Syllabus Documents</span>
+          <span className="text-[11px] text-slate-400">Accepted formats: PDF Textbook Chapters, Course Materials</span>
         </div>
 
         {/* Drag & Drop Zone */}
@@ -766,7 +843,7 @@ export default function EducatorConsole() {
           </div>
 
           <h4 className="text-sm font-semibold text-slate-200">
-            {dragActive ? 'Drop your syllabus or textbook PDF right here' : 'Drag & drop your textbook chapter or syllabus PDF here'}
+            {dragActive ? 'Drop your course or textbook PDF right here' : 'Drag & drop your textbook chapter or syllabus PDF here'}
           </h4>
           <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto leading-relaxed">
             PyMuPDF extracts section headings, theoretical axioms, and bounding boxes. Scanned notes are processed via OCR fallback.
@@ -779,7 +856,7 @@ export default function EducatorConsole() {
 
           {/* Ingestion Progress Overlay */}
           {uploading && (
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-20">
+            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-20">
               <div className="w-10 h-10 border-3 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-3"></div>
               <p className="text-xs font-semibold text-white">{uploadPhase || 'Processing document...'}</p>
               <p className="text-[11px] text-slate-400 mt-1">Indexing vectors and synthesizing lecture slides</p>
@@ -789,38 +866,136 @@ export default function EducatorConsole() {
 
         {/* Upload Status Card */}
         {uploadStatus && (
-          <div className="mt-4 p-4 rounded-xl border border-slate-800 bg-slate-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${uploadStatus.error ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                {uploadStatus.error ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h5 className="text-xs font-bold text-white">{uploadStatus.title || uploadStatus.name}</h5>
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono">
-                    {uploadStatus.size}
-                  </span>
+          <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 space-y-3">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${uploadStatus.error ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                  {uploadStatus.error ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {uploadStatus.error || uploadStatus.status}
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h5 className="text-xs font-bold text-white">{uploadStatus.title || uploadStatus.name}</h5>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono">
+                      {uploadStatus.size}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {uploadStatus.error ? (
+                      <span className="text-red-400">{uploadStatus.error}</span>
+                    ) : (
+                      <span>{uploadStatus.chunksExtracted} sections extracted across {uploadStatus.pagesProcessed} page(s)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {uploadStatus.indexingConfirmed ? (
+                  <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    Indexed in Vector DB
+                  </span>
+                ) : uploadStatus.error ? (
+                  <span className="text-[10px] px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
+                    Ingestion Failed
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                    Processing Index
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setUploadStatus(null);
+                    setIsUploadedDocument(false);
+                    handleResetOutline();
+                  }}
+                  className="text-[11px] text-slate-400 hover:text-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Clear / Upload Another
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-                Indexed in Vector DB
-              </span>
-              <button
-                onClick={() => {
-                  setUploadStatus(null);
-                  handleResetOutline();
-                }}
-                className="text-[11px] text-slate-400 hover:text-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Clear / Upload Another
-              </button>
-            </div>
+            {/* Document Intelligence & Analysis Dashboard */}
+            {!uploadStatus.error && uploadStatus.summary && (
+              <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                {/* Executive Summary Card */}
+                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
+                  <div className="flex items-center gap-1.5 mb-1.5 text-indigo-300 text-xs font-semibold">
+                    <Bookmark className="w-3.5 h-3.5" />
+                    <span>Curriculum Executive Summary</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed font-normal">
+                    {uploadStatus.summary}
+                  </p>
+                </div>
+
+                {/* Important Concepts & Headings Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Concepts */}
+                  {uploadStatus.importantConcepts && uploadStatus.importantConcepts.length > 0 && (
+                    <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                        <Sparkle className="w-3 h-3 text-amber-400" />
+                        Important Concepts & Topics ({uploadStatus.importantConcepts.length})
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uploadStatus.importantConcepts.map((concept, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
+                          >
+                            {concept}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section Headings */}
+                  {uploadStatus.sections && uploadStatus.sections.length > 0 && (
+                    <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                        <ListChecks className="w-3 h-3 text-emerald-400" />
+                        Sections & Headings ({uploadStatus.sections.length})
+                      </span>
+                      <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                        {uploadStatus.sections.map((sec, sIdx) => (
+                          <div key={sIdx} className="text-[11px] text-slate-300 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                            <span className="line-clamp-1">{sec}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Important Portions Excerpts */}
+                {uploadStatus.importantPortions && uploadStatus.importantPortions.length > 0 && (
+                  <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1.5">
+                      <Compass className="w-3 h-3 text-purple-400" />
+                      Important Portions & Verified Citations ({uploadStatus.importantPortions.length})
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                      {uploadStatus.importantPortions.map((port, pIdx) => (
+                        <div key={pIdx} className="p-2 rounded-lg bg-slate-900/60 border border-slate-800/60 text-[11px]">
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                            <span className="font-mono text-indigo-300">Page {port.page}</span>
+                            {port.is_critical && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">CRITICAL</span>
+                            )}
+                          </div>
+                          <p className="text-slate-300 line-clamp-2 leading-relaxed">{port.snippet}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -830,7 +1005,7 @@ export default function EducatorConsole() {
         {/* Studio Action Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
               <Presentation className="w-5 h-5 text-indigo-400" />
               <h3 className="text-base font-bold text-white tracking-tight">
                 Slide Outline Editor & Live Presentation Studio
@@ -842,6 +1017,18 @@ export default function EducatorConsole() {
                 <Clock className="w-3 h-3 text-amber-400" />
                 {totalSpeakingDuration()} lecture
               </span>
+
+              {/* Document Grounding Tag */}
+              {isUploadedDocument ? (
+                <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-emerald-400" />
+                  Grounded in: {uploadStatus?.title}
+                </span>
+              ) : (
+                <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  Demo Template (Upload PDF to replace)
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 mt-1">
               Select any slide from the outline to edit bullet points, customize teacher speaker scripts, and preview the live presentation canvas.
@@ -859,7 +1046,7 @@ export default function EducatorConsole() {
 
             <button
               onClick={handleResetOutline}
-              title="Reset slide deck to default template"
+              title="Reset slide deck to document template"
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -896,7 +1083,7 @@ export default function EducatorConsole() {
                   const isActive = index === activeSlideIndex;
                   return (
                     <div
-                      key={slide.id}
+                      key={slide.id || index}
                       onClick={() => setActiveSlideIndex(index)}
                       className={`group p-3 rounded-xl border transition-all cursor-pointer relative ${
                         isActive
@@ -922,7 +1109,7 @@ export default function EducatorConsole() {
                               {slide.title}
                             </h4>
                             <p className="text-[10px] text-slate-500 mt-0.5">
-                              {slide.bullets.length} points · {calculateSpeakingTime(slide.notes)}
+                              {slide.bullets?.length || 0} points · {calculateSpeakingTime(slide.notes)}
                             </p>
                           </div>
                         </div>
@@ -972,7 +1159,7 @@ export default function EducatorConsole() {
                 {/* Add Slide Bottom Button */}
                 <button
                   onClick={handleAddNewSlide}
-                  className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-indigo-500/60 text-slate-400 hover:text-indigo-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors bg-slate-950/30"
+                  className="w-full py-2.5 rounded-xl border border-dashed border-slate-800 hover:border-indigo-500/60 text-slate-400 hover:text-indigo-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors bg-slate-950/30 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Slide {slides.length + 1}</span>
@@ -1038,7 +1225,7 @@ export default function EducatorConsole() {
                 ) : (
                   /* Formatted Presentation Bullet Points */
                   <ul className="space-y-2.5">
-                    {activeSlide?.bullets.map((bullet, bIdx) => (
+                    {activeSlide?.bullets?.map((bullet, bIdx) => (
                       <li key={bIdx} className="flex items-start gap-2.5 text-xs sm:text-sm text-slate-200">
                         <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 mt-1.5 shadow-sm shadow-indigo-400/50"></span>
                         <span className="leading-relaxed font-normal">{bullet}</span>
@@ -1108,7 +1295,7 @@ export default function EducatorConsole() {
                     }`}
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>Slide Content & Bullets ({activeSlide?.bullets.length})</span>
+                    <span>Slide Content & Bullets ({activeSlide?.bullets?.length || 0})</span>
                   </button>
 
                   <button
@@ -1125,7 +1312,7 @@ export default function EducatorConsole() {
                 </div>
 
                 <span className="text-[11px] text-slate-400 font-mono">
-                  Slide ID: {activeSlide?.id}
+                  Slide ID: {activeSlide?.id || `slide-${activeSlideIndex + 1}`}
                 </span>
               </div>
 
@@ -1173,13 +1360,13 @@ export default function EducatorConsole() {
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-semibold text-slate-400">
-                        Slide Bullet Points ({activeSlide?.bullets.length})
+                        Slide Bullet Points ({activeSlide?.bullets?.length || 0})
                       </label>
                       <span className="text-[10px] text-slate-500">Reorder with arrows or delete</span>
                     </div>
 
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {activeSlide?.bullets.map((bullet, bIdx) => (
+                      {activeSlide?.bullets?.map((bullet, bIdx) => (
                         <div key={bIdx} className="flex items-center gap-2 bg-slate-950/60 p-2 rounded-xl border border-slate-800/80">
                           <span className="text-[10px] font-mono text-slate-500 w-4 text-center">{bIdx + 1}</span>
                           <input

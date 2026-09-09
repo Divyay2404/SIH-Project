@@ -49,6 +49,12 @@ class IngestResponse(DictAccessibleBaseModel):
     chunks_extracted: int = Field(..., description="Number of text chunks extracted", examples=[12])
     pages_processed: int = Field(..., description="Total pages processed", examples=[3])
     message: str = Field(..., description="Status description message", examples=["Document successfully parsed and indexed into vector repository with coordinate metadata."])
+    indexing_confirmed: bool = Field(default=True, description="Whether chunks are confirmed indexed in Vector DB", examples=[True])
+    summary: Optional[str] = Field(default=None, description="Document-specific executive summary")
+    important_concepts: Optional[List[str]] = Field(default_factory=list, description="Extracted key concepts and topics")
+    sections: Optional[List[str]] = Field(default_factory=list, description="Extracted section headings")
+    important_portions: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Important excerpts and page references")
+    slides: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Structured 10-slide outline for presentation")
 
 
 # ==========================================
