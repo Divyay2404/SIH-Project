@@ -404,3 +404,76 @@ fix: deploy backend and connect production ingestion API
 
 - **Suggested Title**:  
   `feat: enable any PDF upload and marks-aware Student Portal RAG`
+
+---
+
+### 🔹 Issue #19: Student Document Viewer Shows Blank Blue Screen After Upload
+
+- **Labels**: `bug`, `role:student-ui`, `high-priority`
+- **Target File**: `frontend/src/components/student/PdfViewer.jsx`, `frontend/src/components/student/StudentPortal.jsx`
+- **Description**:
+  After a student uploads a document, the source-evidence area can show a blank blue screen instead of readable document content. This blocks the student from checking the uploaded material and reduces confidence in citations returned by the chat assistant.
+
+- **Acceptance Criteria**:
+  - [ ] Show an explicit loading state while the document view is being prepared.
+  - [ ] Render the actual uploaded PDF with a reliable PDF viewer; preserve readable text, diagrams, tables, and page navigation where supported.
+  - [ ] Show extracted page/slide text when native preview is unavailable.
+  - [ ] Never leave a blank, unlabelled canvas or blue screen after successful ingestion.
+  - [ ] Display a clear extraction/viewer error with a retry or re-upload action if rendering fails.
+  - [ ] Keep the active document filename, page number, and citation evidence visible.
+  - [ ] Verify the viewer with selectable-text, scanned, multi-page, and mixed PDFs.
+
+- **Definition of Done**:
+  A student who uploads a valid document can immediately read the source material in the Student Portal and use chat citations to navigate to meaningful source evidence.
+
+- **Suggested Title**:
+  `fix: render uploaded source material in Student Portal viewer`
+
+---
+
+### 🔹 Issue #20: Add Modern PowerPoint (.pptx) Ingestion for Student Chat
+
+- **Labels**: `feature`, `role:student-ui`, `backend`, `ingestion`, `rag`, `high-priority`
+- **Target File**: `backend/app/api/routes.py`, `backend/app/ingestion/`, `backend/app/rag/vector_store.py`, `frontend/src/components/student/StudentPortal.jsx`, `frontend/src/components/student/PdfViewer.jsx`
+- **Description**:
+  The Student Portal currently accepts only PDFs. Students must also be able to upload modern PowerPoint (`.pptx`) lecture decks and communicate with the text contained in their slides through the existing document-grounded chat assistant.
+
+- **Acceptance Criteria**:
+  - [ ] Accept valid `.pptx` files in addition to PDFs.
+  - [ ] Extract readable slide titles, text boxes, and table text into slide-scoped chunks.
+  - [ ] Create and return a unique `document_id` for each PPTX upload.
+  - [ ] Use the active PPTX `document_id` for every student chat query.
+  - [ ] Return slide-number citations for answers grounded in PowerPoint content.
+  - [ ] Display extracted slide text and slide navigation in the source-evidence panel.
+  - [ ] Reject legacy `.ppt`, empty, password-protected, corrupted, and unsupported files with clear guidance.
+  - [ ] Do not claim support for legacy `.ppt` files until it is implemented.
+  - [ ] Verify two unrelated PPTX/PDF uploads cannot mix retrieval results.
+
+- **Definition of Done**:
+  A student can upload a modern PowerPoint lecture deck, ask a question about its slides, and receive a 2-, 5-, or 10-mark answer grounded in that deck with a slide citation.
+
+- **Suggested Title**:
+  `feat: enable PPTX ingestion for document-grounded student chat`
+
+---
+
+### 🔹 Issue #21: Remove Hardcoded BST Content From Production Student and Educator Flows
+
+- **Labels**: `bug`, `content-integrity`, `role:student-ui`, `role:educator-ui`, `high-priority`
+- **Target File**: `backend/app/rag/vector_store.py`, `backend/app/ingestion/pdf_parser.py`, `backend/app/api/routes.py`, `frontend/src/components/educator/EducatorConsole.jsx`, `frontend/src/components/student/DiagnosticQuiz.jsx`
+- **Description**:
+  Binary Search Tree sample data, quiz content, and educator slides appear in normal application flows. This can make an unrelated uploaded document appear to contain BST material and makes the prototype look like a static demo rather than a document-driven learning tool.
+
+- **Acceptance Criteria**:
+  - [ ] Start normal student and educator sessions with an empty, guided upload state.
+  - [ ] Remove BST seed chunks from production retrieval paths.
+  - [ ] Keep any BST examples behind an explicit, clearly labelled “Load demo data” action.
+  - [ ] Do not show BST quiz questions or heatmap data for an unrelated uploaded document.
+  - [ ] Ensure document-specific chat and exports use only the active uploaded document.
+  - [ ] Clearly label any intentionally retained sample content.
+
+- **Definition of Done**:
+  A fresh user sees no subject-specific sample material unless they explicitly choose demo data, and an uploaded document cannot return unrelated BST content.
+
+- **Suggested Title**:
+  `fix: isolate demo BST data from uploaded-document workflows`
