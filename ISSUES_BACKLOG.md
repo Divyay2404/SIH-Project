@@ -327,4 +327,80 @@ Definition of Done
 A user can open the production Educator Console, upload a PDF, and successfully see its document analysis, concepts, sections, important portions, slide outline, indexing status, and generated PPT/handout without receiving a 404 ingestion error.
 Suggested title:
 fix: deploy backend and connect production ingestion API
- 
+
+---
+
+### 🔹 Issue #18: Student Portal — Upload Any PDF & Generate Marks-Aware Answers
+
+- **Labels**: `feature`, `role:student-ui`, `role:rag-lead`, `backend`, `rag`, `high-priority`
+- **Target File**: `frontend/src/components/student/StudentPortal.jsx`, `frontend/src/components/student/PdfViewer.jsx`, `backend/app/api/routes.py`, `backend/app/rag/qa_engine.py`
+- **Description**:  
+  The Student Portal currently displays a sample/document-specific PDF such as `Binary_Search_Trees_Chapter.pdf`. The portal should instead allow students to upload any course/study PDF and ask questions based specifically on that uploaded document.
+
+  **Workflow**:
+  ```
+  Upload Any PDF
+        ↓
+  PDF Processing + OCR
+        ↓
+  Document Indexing
+        ↓
+  Active document_id
+        ↓
+  Ask Question
+        ↓
+  Select 2 / 5 / 10 Marks
+        ↓
+  Document-Grounded Answer
+        ↓
+  Citation + Page + PDF Highlight
+  ```
+
+- **Acceptance Criteria**:
+  - [ ] Student can upload any valid PDF from the Student Portal.
+  - [ ] No specific subject/document is hardcoded.
+  - [ ] Remove any production dependency on `Binary_Search_Trees_Chapter.pdf` or other demo documents.
+  - [ ] Uploaded PDF is sent to `POST /api/ingest`.
+  - [ ] Successful ingestion returns and stores the correct `document_id`.
+  - [ ] Uploaded document becomes the active study document.
+  - [ ] Student Portal displays the actual uploaded filename/title.
+  - [ ] PDF processing supports selectable, scanned, mixed, and multi-page PDFs.
+  - [ ] Document is indexed in the Vector DB before being used for RAG.
+  - [ ] Student question is sent with the active `document_id`.
+  - [ ] RAG retrieval is strictly restricted to the active document.
+  - [ ] 2 Marks generates a short/direct exam answer.
+  - [ ] 5 Marks generates a moderately detailed exam answer.
+  - [ ] 10 Marks generates a detailed exam-style answer.
+  - [ ] Changing marks changes the answer depth appropriately.
+  - [ ] Answers remain grounded in the uploaded PDF.
+  - [ ] If sufficient evidence is not found, the system abstains instead of inventing an answer.
+  - [ ] Citations include relevant document/page/source information.
+  - [ ] Citation click opens the relevant PDF page and highlights the relevant bounding-box area where available.
+  - [ ] Switching between different uploaded PDFs updates the active `document_id`.
+  - [ ] Previous document content is not retrieved after switching documents.
+  - [ ] No document selected/uploaded shows a clear empty state instead of loading demo content.
+  - [ ] Preserve existing Split Screen, Chat Focus, Document Focus, Diagnostic Quiz, Learning Twin, and off-topic abstention functionality.
+  - [ ] Handle invalid, empty, corrupted, or failed PDF uploads with clear errors.
+  - [ ] Do not display "Indexed" unless indexing is actually confirmed.
+  - [ ] Use `VITE_API_BASE_URL`; do not hardcode localhost or production API URLs.
+
+- **Testing**:
+  Verify with at least two unrelated PDFs:
+  - PDF A → Upload → Ask question → `document_id` A → Correct answer
+  - PDF B → Upload → Ask question → `document_id` B → Correct answer
+
+  Also verify:
+  - [ ] PDF A content cannot be retrieved when PDF B is active.
+  - [ ] Same question produces appropriately different 2/5/10-mark answers.
+  - [ ] Off-topic question triggers abstention.
+  - [ ] Citation and PDF highlighting work.
+  - [ ] No PDF results in no fake/demo document.
+  - [ ] Backend tests pass.
+  - [ ] Frontend tests pass.
+  - [ ] Frontend production build succeeds.
+
+- **Definition of Done**:  
+  A student can open the Student Portal, upload any study/course PDF, ask questions from that document, select 2, 5, or 10 marks, and receive an appropriately sized document-grounded exam answer with source evidence, without any dependency on the BST demo document.
+
+- **Suggested Title**:  
+  `feat: enable any PDF upload and marks-aware Student Portal RAG`
