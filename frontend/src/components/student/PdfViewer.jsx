@@ -49,6 +49,13 @@ export default function PdfViewer({
     }
   }, [activeDocument?.document_id, activeDocument?.sourceUrl, isPdf]);
 
+  // If loading takes too long, show error fallback
+  useEffect(() => {
+    if (viewerState !== 'loading') return;
+    const timeout = setTimeout(() => setViewerState('failed'), 8000); // 8 s
+    return () => clearTimeout(timeout);
+  }, [viewerState]);
+
   if (!activeDocument) {
     return (
       <div className="glass-panel rounded-2xl flex flex-col h-[720px] items-center justify-center p-8 border border-slate-800 shadow-2xl bg-slate-950/80 text-center">
@@ -134,7 +141,7 @@ export default function PdfViewer({
           canUseNativePreview ? (
             <iframe
               key={`${activeDocument.sourceUrl}-${selectedPage}-${viewerState}`}
-              src={`${activeDocument.sourceUrl}#page=${selectedPage}`}
+              src={activeDocument.sourceUrl}
               title={`Original PDF: ${activeDocument.filename}`}
               className="w-full h-full min-h-[590px] rounded-xl bg-white border border-slate-700"
               onLoad={() => setViewerState('ready')}
