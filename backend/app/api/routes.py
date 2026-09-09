@@ -31,6 +31,7 @@ from app.schemas.api_schemas import (
 )
 
 from app.ingestion.pdf_parser import pdf_parser_engine
+from app.ingestion.pptx_parser import pptx_parser_engine
 from app.ingestion.document_analyzer import document_analyzer
 from app.rag.vector_store import vector_store
 from app.rag.qa_engine import qa_engine
@@ -133,7 +134,7 @@ async def process_rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
 @router.post(
     "/ingest",
     response_model=IngestResponse,
-    summary="Ingest PDF textbook chapter and index vectors",
+    summary="Ingest PDF or modern PPTX course material and index vectors",
     tags=["Ingestion"],
     responses={
         400: {"model": ErrorResponse, "description": "File format invalid or empty file"},
@@ -142,41 +143,48 @@ async def process_rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
     }
 )
 async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
-    """Ingests PDF textbook chapter, extracts text & coordinates, and indexes into vector memory."""
+    """Ingests PDF or PPTX course material, extracts text, and indexes into vector memory."""
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix != ".pdf":
-        raise HTTPException(status_code=400, detail="Educator uploads currently support PDF documents only.")
+    if suffix == ".pdf":
+        parser = pdf_parser_engine
+        parser_name = "PDF"
+    elif suffix == ".pptx":
+        if not pptx_parser_engine.available:
+            raise HTTPException(status_code=400, detail="python-pptx is required to parse .pptx files.")
+        parser = pptx_parser_engine
+        parser_name = "PPTX"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a PDF or modern PowerPoint (.pptx) lecture file.")
 
     temp_path = ""
     try:
         content = await file.read()
         if not content:
-            raise HTTPException(status_code=400, detail="The uploaded PDF file is empty.")
+            raise HTTPException(status_code=400, detail=f"The uploaded {parser_name} file is empty.")
 
-        # PyMuPDF needs a file path, so persist only this request's uploaded bytes
-        # to a temporary PDF and remove it immediately after extraction.
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             temp_path = temp_file.name
             temp_file.write(content)
 
-        chunks = pdf_parser_engine.parse_pdf(temp_path)
+        if suffix == ".pdf":
+            chunks = pdf_parser_engine.parse_pdf(temp_path)
+        else:
+            chunks = pptx_parser_engine.parse_pptx(temp_path)
+
         if not chunks:
             raise HTTPException(status_code=422, detail="No readable text could be extracted from this document.")
 
-        raw_filename = file.filename or "Uploaded_Document.pdf"
+        raw_filename = file.filename or ("Uploaded_Document.pdf" if suffix == ".pdf" else "Uploaded_Document.pptx")
         document_id = f"doc_{uuid.uuid4().hex}"
         for chunk in chunks:
             chunk["document_id"] = document_id
             chunk["document_name"] = raw_filename
 
-        # Index into vector store
         vector_store.add_chunks(chunks)
 
-        # Confirm indexing in vector store
         if not vector_store.has_document(document_id):
             raise HTTPException(status_code=500, detail="Vector store indexing verification failed.")
 
-        # Execute structure-aware document intelligence analysis
         raw_title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
         analysis = document_analyzer.analyze_document(chunks, raw_title=raw_title, filename=raw_filename)
         title = analysis.get("title") or raw_title
