@@ -1,22 +1,15 @@
 /**
  * StudyForge OS - API Client Configuration
- * Supports both local development (via Vite dev proxy) and deployed environments
- * (via VITE_API_BASE_URL environment variable).
+ * Supports unified routing across both local development (via Vite dev proxy)
+ * and production deployments (via vercel.json /api proxy rewrites or VITE_API_BASE_URL).
  */
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
-// Verified production Render backend endpoint
-export const DEFAULT_PRODUCTION_API = 'https://sih-fastapi-backend.onrender.com';
-
-// If VITE_API_BASE_URL is explicitly provided, use it.
-// If running on a deployed host (e.g. Vercel) and no env var was set, automatically fall back to Render.
-// In local development (localhost / 127.0.0.1), fall back to empty string to use Vite's dev proxy.
-export const API_BASE_URL = rawBaseUrl
-  ? rawBaseUrl.replace(/\/+$/, '')
-  : (typeof window !== 'undefined' && window.location.hostname && !['localhost', '127.0.0.1'].includes(window.location.hostname)
-      ? DEFAULT_PRODUCTION_API
-      : '');
+// If VITE_API_BASE_URL is explicitly set, normalize and use it.
+// Otherwise, default to empty string so all /api requests use relative routing,
+// cleanly handled by Vite dev proxy in local development and vercel.json rewrites in production.
+export const API_BASE_URL = rawBaseUrl ? rawBaseUrl.replace(/\/+$/, '') : '';
 
 export const apiUrl = (path) => {
   const cleanPath = (path || '').startsWith('/') ? path : `/${path}`;

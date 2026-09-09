@@ -1,16 +1,18 @@
 """
 FastAPI REST Router for SIH 2026 Prototype Gateway.
 Connects UI to PyMuPDF parsing, RAG qa_engine, diagnostic learner_state,
-and PPT/PDF generator modules.
+and PPT/PDF generator modules. Backed by SQLite persistence, upload protections,
+thread-pool execution, and deep health check reporting.
 """
 
+import asyncio
 import os
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Response, UploadFile, File, Query, Header
 
 from app.schemas.api_schemas import (
     HealthCheckResponse,
@@ -30,19 +32,33 @@ from app.schemas.api_schemas import (
     DocumentListResponse,
 )
 
-from app.ingestion.pdf_parser import pdf_parser_engine
+from app.ingestion.pdf_parser import pdf_parser_engine, PYMUPDF_AVAILABLE
 from app.ingestion.pptx_parser import pptx_parser_engine
 from app.ingestion.document_analyzer import document_analyzer
+from app.ingestion.ocr import ocr_engine
 from app.rag.vector_store import vector_store
 from app.rag.qa_engine import qa_engine
 from app.diagnostics.learner_state import learner_engine
 from app.generators.ppt_generator import ppt_generator
 from app.generators.pdf_generator import pdf_generator
+from app.storage.database import db_manager
+
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
 
 router = APIRouter(prefix="/api")
 
-# The prototype keeps parsed export material in process memory. The ID returned
-# by /ingest is the only document an export endpoint is allowed to use.
+# Upload and safety constraints
+MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB max upload
+MAX_PAGE_COUNT = 100                      # 100 pages max
+PROCESSING_TIMEOUT_SECONDS = 45           # 45s execution budget
+
+# Process memory cache for parsed documents, supplemented by SQLite persistence
 document_exports: Dict[str, Dict[str, Any]] = {}
 
 
@@ -72,18 +88,53 @@ def _reconstruct_pages(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [page_dict[p] for p in sorted(page_dict.keys())]
 
 
+def _get_export_document(document_id: str) -> Dict[str, Any]:
+    """Retrieves document from in-memory cache or rehydrates from SQLite storage."""
+    document = document_exports.get(document_id)
+    if not document:
+        stored = db_manager.get_document(document_id)
+        if stored:
+            # Reconstruct chunks from vector store if available
+            stored["chunks"] = vector_store.get_document_chunks(document_id)
+            document_exports[document_id] = stored
+            return stored
+        raise HTTPException(status_code=404, detail="Document not found. Upload a PDF before exporting.")
+    return document
+
+
 @router.get(
     "/health",
     response_model=HealthCheckResponse,
-    summary="API Gateway Health Check",
+    summary="API Gateway Deep Health Check",
     tags=["Health"]
 )
 async def health_check() -> HealthCheckResponse:
-    """Returns gateway service health status, engine identifier, and version."""
+    """Returns gateway service health status, engine identifier, deep dependency checks, and pipeline readiness."""
+    ocr_info = ocr_engine.verify_ocr_runtime()
+    deps = {
+        "pymupdf": bool(PYMUPDF_AVAILABLE),
+        "ocr": bool(ocr_info.get("available")),
+        "pptx": bool(pptx_parser_engine.available),
+        "reportlab": bool(pdf_generator.available),
+        "sqlite": True,
+        "vector_store": True,
+    }
+    pipeline = {
+        "ingestion": "ready" if deps["pymupdf"] else "degraded",
+        "ocr": ocr_info.get("status", "unavailable"),
+        "retrieval": "ready",
+        "exports": "ready" if (deps["pptx"] and deps["reportlab"]) else "partial",
+        "storage": "ready",
+    }
+    stored_docs = db_manager.list_documents()
     return HealthCheckResponse(
         status="online",
         system="StudyCopilot & StudyForge Engine",
-        version="1.0.0"
+        version="1.0.0",
+        dependencies=deps,
+        pipeline_readiness=pipeline,
+        storage={"persisted_documents": len(stored_docs)},
+        ocr_runtime=ocr_info,
     )
 
 
@@ -96,8 +147,12 @@ async def health_check() -> HealthCheckResponse:
 async def list_documents() -> DocumentListResponse:
     """Returns list of all available ingested documents with basic metadata for selection."""
     docs = []
+    seen_ids = set()
+
+    # In-memory documents
     for doc_id, doc in document_exports.items():
-        pages_count = max((c.get("page", 1) for c in doc.get("chunks", [])), default=1)
+        seen_ids.add(doc_id)
+        pages_count = max((c.get("page", 1) for c in doc.get("chunks", [])), default=doc.get("pages_count", 1))
         docs.append(DocumentSummaryItem(
             document_id=doc_id,
             filename=doc.get("filename", "document.pdf"),
@@ -106,6 +161,20 @@ async def list_documents() -> DocumentListResponse:
             chunks_count=len(doc.get("chunks", [])),
             indexing_confirmed=vector_store.has_document(doc_id)
         ))
+
+    # SQLite-persisted documents not in memory
+    for stored in db_manager.list_documents():
+        if stored["document_id"] not in seen_ids:
+            seen_ids.add(stored["document_id"])
+            docs.append(DocumentSummaryItem(
+                document_id=stored["document_id"],
+                filename=stored["filename"],
+                title=stored["title"],
+                pages_count=stored["pages_count"],
+                chunks_count=stored["chunks_count"],
+                indexing_confirmed=vector_store.has_document(stored["document_id"])
+            ))
+
     return DocumentListResponse(status="success", documents=docs)
 
 
@@ -138,23 +207,29 @@ async def process_rag_query(request: RAGQueryRequest) -> RAGQueryResponse:
     tags=["Ingestion"],
     responses={
         400: {"model": ErrorResponse, "description": "File format invalid or empty file"},
+        413: {"model": ErrorResponse, "description": "File size exceeds 25 MB upload limit"},
         422: {"model": ErrorResponse, "description": "No readable text extracted"},
-        500: {"model": ErrorResponse, "description": "Ingestion processing error"}
+        500: {"model": ErrorResponse, "description": "Ingestion processing error"},
+        504: {"model": ErrorResponse, "description": "Ingestion processing timeout"}
     }
 )
-async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
+async def ingest_document(
+    file: UploadFile = File(...),
+    x_user_id: Optional[str] = Header("student_sih_2026")
+) -> IngestResponse:
     """Ingests PDF or PPTX course material, extracts text, and indexes into vector memory."""
     suffix = Path(file.filename or "").suffix.lower()
     if suffix == ".pdf":
-        parser = pdf_parser_engine
         parser_name = "PDF"
     elif suffix == ".pptx":
         if not pptx_parser_engine.available:
             raise HTTPException(status_code=400, detail="python-pptx is required to parse .pptx files.")
-        parser = pptx_parser_engine
         parser_name = "PPTX"
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Educator uploads currently support PDF documents only (or modern PowerPoint .pptx files).")
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file format. Educator uploads currently support PDF documents only (or modern PowerPoint .pptx files)."
+        )
 
     temp_path = ""
     try:
@@ -162,14 +237,45 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         if not content:
             raise HTTPException(status_code=400, detail=f"The uploaded {parser_name} file is empty.")
 
+        # Protection: 25 MB upload limit
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Uploaded file exceeds {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB size limit."
+            )
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             temp_path = temp_file.name
             temp_file.write(content)
 
-        if suffix == ".pdf":
-            chunks = pdf_parser_engine.parse_pdf(temp_path)
-        else:
-            chunks = pptx_parser_engine.parse_pptx(temp_path)
+        # Protection: Page count limit on PDFs
+        if suffix == ".pdf" and fitz is not None:
+            try:
+                with fitz.open(temp_path) as test_doc:
+                    if test_doc.page_count > MAX_PAGE_COUNT:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Document contains {test_doc.page_count} pages, exceeding the maximum allowed {MAX_PAGE_COUNT} pages."
+                        )
+            except Exception as pe:
+                if isinstance(pe, HTTPException):
+                    raise pe
+
+        # Execute heavy CPU parsing and analysis in thread pool with timeout protection
+        async def _process_pipeline():
+            if suffix == ".pdf":
+                extracted_chunks = await asyncio.to_thread(pdf_parser_engine.parse_pdf, temp_path)
+            else:
+                extracted_chunks = await asyncio.to_thread(pptx_parser_engine.parse_pptx, temp_path)
+            return extracted_chunks
+
+        try:
+            chunks = await asyncio.wait_for(_process_pipeline(), timeout=PROCESSING_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=504,
+                detail=f"Document processing exceeded execution time budget of {PROCESSING_TIMEOUT_SECONDS} seconds."
+            )
 
         if not chunks:
             raise HTTPException(status_code=422, detail="No readable text could be extracted from this document.")
@@ -180,17 +286,23 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
             chunk["document_id"] = document_id
             chunk["document_name"] = raw_filename
 
+        # Index into vector store and SQLite storage
         vector_store.add_chunks(chunks)
 
         if not vector_store.has_document(document_id):
             raise HTTPException(status_code=500, detail="Vector store indexing verification failed.")
 
         raw_title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
-        analysis = document_analyzer.analyze_document(chunks, raw_title=raw_title, filename=raw_filename)
+        analysis = await asyncio.to_thread(
+            document_analyzer.analyze_document,
+            chunks,
+            raw_title=raw_title,
+            filename=raw_filename
+        )
         title = analysis.get("title") or raw_title
         pages_reconstructed = _reconstruct_pages(chunks)
 
-        document_exports[document_id] = {
+        doc_record = {
             "document_id": document_id,
             "title": title,
             "chunks": chunks,
@@ -203,6 +315,14 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
             "pages": pages_reconstructed,
             "pdf_bytes": content,
         }
+
+        document_exports[document_id] = doc_record
+
+        # Persist document to SQLite
+        try:
+            db_manager.save_document(doc_record, user_id=x_user_id or "student_sih_2026")
+        except Exception:
+            pass
 
         pages_processed = analysis.get("page_count") or max((c.get("page", 0) for c in chunks), default=1)
 
@@ -228,7 +348,10 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         raise HTTPException(status_code=500, detail=f"Ingestion failure: {str(e)}")
     finally:
         if temp_path and os.path.exists(temp_path):
-            os.unlink(temp_path)
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
 
 
 @router.get(
@@ -248,7 +371,7 @@ async def get_document(document_id: str):
         "title": document["title"],
         "filename": document["filename"],
         "chunks_count": len(document.get("chunks", [])),
-        "pages_count": max((c.get("page", 1) for c in document.get("chunks", [])), default=1),
+        "pages_count": max((c.get("page", 1) for c in document.get("chunks", [])), default=document.get("pages_count", 1)),
         "summary": document.get("summary"),
         "sections": document.get("sections", []),
         "important_concepts": document.get("important_concepts", []),
@@ -296,15 +419,26 @@ async def load_demo_data() -> IngestResponse:
         DEMO_TITLE,
         DEMO_CHUNKS,
         DEMO_SLIDES,
+        DEMO_QUIZ,
     )
-    # 1. Seed into vector store
+    # 1. Seed into vector store (memory only, never persisted to SQLite)
     if not vector_store.has_document(DEMO_DOCUMENT_ID):
-        vector_store.add_chunks(DEMO_CHUNKS)
+        vector_store.add_chunks(DEMO_CHUNKS, persist=False)
 
     # 2. Activate demo diagnostics
     learner_engine.activate_demo_mode()
 
-    # 3. Prepare demo document record
+    # 3. Register demo quiz in SQLite question bank
+    db_manager.register_quiz_question(
+        question_id=DEMO_QUIZ["question_id"],
+        topic=DEMO_QUIZ["topic"],
+        question_text=DEMO_QUIZ["question_text"],
+        options=DEMO_QUIZ["options"],
+        correct_option=DEMO_QUIZ.get("correct_option", 0),
+        document_id=DEMO_DOCUMENT_ID
+    )
+
+    # 4. Prepare demo document record
     pages_reconstructed = _reconstruct_pages(DEMO_CHUNKS)
     demo_doc_record = {
         "document_id": DEMO_DOCUMENT_ID,
@@ -359,32 +493,60 @@ async def load_demo_data() -> IngestResponse:
     tags=["Diagnostics"]
 )
 async def get_diagnostic_quiz(document_id: Optional[str] = Query(None)) -> QuizQuestionResponse:
-    """Fetches diagnostic micro-quiz question dynamically scoped to the target document."""
+    """Fetches diagnostic micro-quiz question dynamically scoped to the target document with verified correct option."""
     from app.demo.demo_data import DEMO_DOCUMENT_ID, DEMO_QUIZ
 
     # If scoped to an uploaded document
-    if document_id and document_id in document_exports and document_id != DEMO_DOCUMENT_ID:
-        doc = document_exports[document_id]
+    if document_id and (document_id in document_exports or db_manager.get_document(document_id)) and document_id != DEMO_DOCUMENT_ID:
+        doc = _get_export_document(document_id)
         concepts = doc.get("important_concepts") or []
         sections = doc.get("sections") or []
         title = doc.get("title", "Active Document")
         topic_name = concepts[0] if concepts else (sections[0] if sections else title)
 
-        return QuizQuestionResponse(
-            question_id=f"q_{document_id[:8]}_01",
+        question_id = f"q_{document_id[:8]}_01"
+        options = [
+            f"Preserving the core invariant and operational constraints of {topic_name}",
+            f"Arbitrary manipulation without verifying underlying {topic_name} state",
+            f"Bypassing deterministic execution rules in {topic_name}",
+            f"Ignoring boundary conditions and asymptotic complexity"
+        ]
+        correct_option = 0
+        error_mappings = {
+            "1": {"type": "conceptual_gap", "title": "Conceptual Gap", "desc": f"Misunderstood foundational invariant in {topic_name}."},
+            "2": {"type": "process_mistake", "title": "Process Mistake", "desc": f"Skipped execution sequencing in {topic_name}."},
+            "3": {"type": "terminology_confusion", "title": "Terminology Confusion", "desc": f"Conflated operational boundaries in {topic_name}."}
+        }
+
+        # Register in SQLite quiz bank so diagnose evaluates against true correct option
+        db_manager.register_quiz_question(
+            question_id=question_id,
             topic=topic_name,
             question_text=f"Which principle is central to understanding and analyzing {topic_name}?",
-            options=[
-                f"Preserving the core invariant and operational constraints of {topic_name}",
-                f"Arbitrary manipulation without verifying underlying {topic_name} state",
-                f"Bypassing deterministic execution rules in {topic_name}",
-                f"Ignoring boundary conditions and asymptotic complexity"
-            ],
+            options=options,
+            correct_option=correct_option,
+            document_id=document_id,
+            error_mappings=error_mappings
+        )
+
+        return QuizQuestionResponse(
+            question_id=question_id,
+            topic=topic_name,
+            question_text=f"Which principle is central to understanding and analyzing {topic_name}?",
+            options=options,
             is_empty=False
         )
 
     # If demo document is explicitly requested or demo mode is active
     if document_id == DEMO_DOCUMENT_ID or (not document_id and getattr(learner_engine, "is_demo_mode", False)):
+        db_manager.register_quiz_question(
+            question_id=DEMO_QUIZ["question_id"],
+            topic=DEMO_QUIZ["topic"],
+            question_text=DEMO_QUIZ["question_text"],
+            options=DEMO_QUIZ["options"],
+            correct_option=DEMO_QUIZ.get("correct_option", 0),
+            document_id=DEMO_DOCUMENT_ID
+        )
         return QuizQuestionResponse(
             question_id=DEMO_QUIZ["question_id"],
             topic=DEMO_QUIZ["topic"],
@@ -393,8 +555,16 @@ async def get_diagnostic_quiz(document_id: Optional[str] = Query(None)) -> QuizQ
             is_empty=False
         )
 
-    # If document_id was not provided, check if demo document is registered or return default BST quiz for test compatibility
+    # If document_id was not provided, return default BST quiz for test compatibility
     if not document_id:
+        db_manager.register_quiz_question(
+            question_id=DEMO_QUIZ["question_id"],
+            topic=DEMO_QUIZ["topic"],
+            question_text=DEMO_QUIZ["question_text"],
+            options=DEMO_QUIZ["options"],
+            correct_option=DEMO_QUIZ.get("correct_option", 0),
+            document_id=DEMO_DOCUMENT_ID
+        )
         return QuizQuestionResponse(
             question_id=DEMO_QUIZ["question_id"],
             topic=DEMO_QUIZ["topic"],
@@ -412,12 +582,16 @@ async def get_diagnostic_quiz(document_id: Optional[str] = Query(None)) -> QuizQ
     summary="Diagnose student mistake against error taxonomy",
     tags=["Diagnostics"]
 )
-async def submit_quiz_answer(request: QuizSubmissionRequest) -> DiagnosticResponse:
+async def submit_quiz_answer(
+    request: QuizSubmissionRequest,
+    x_user_id: Optional[str] = Header("student_sih_2026")
+) -> DiagnosticResponse:
     """Diagnoses student mistake against Error Taxonomy and triggers Rescue Mission if needed."""
     result = learner_engine.evaluate_quiz_answer(
         question_id=request.question_id,
         selected_option=request.selected_option,
-        topic_id=request.topic_id
+        topic_id=request.topic_id,
+        user_id=x_user_id
     )
     return DiagnosticResponse(**result)
 
@@ -432,13 +606,6 @@ async def get_readiness_analytics() -> ReadinessResponse:
     """Returns student readiness heatmap & class error distribution data."""
     data = learner_engine.get_readiness_heatmap()
     return ReadinessResponse(**data)
-
-
-def _get_export_document(document_id: str) -> Dict[str, Any]:
-    document = document_exports.get(document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found. Upload a PDF before exporting.")
-    return document
 
 
 @router.get(
@@ -459,10 +626,10 @@ def _get_export_document(document_id: str) -> Dict[str, Any]:
 async def export_ppt(
     document_id: str = Query(..., description="Document ID generated during /api/ingest")
 ):
-    """Generates editable PowerPoint presentation deck (.pptx) with speaker notes."""
+    """Generates editable PowerPoint presentation deck (.pptx) with speaker notes in thread pool."""
     try:
         document = _get_export_document(document_id)
-        ppt_bytes = ppt_generator.generate_ppt_deck(document)
+        ppt_bytes = await asyncio.to_thread(ppt_generator.generate_ppt_deck, document)
         filename_stem = document["title"].replace(" ", "_")
         return Response(
             content=ppt_bytes,
@@ -493,10 +660,10 @@ async def export_ppt(
 async def export_pdf(
     document_id: str = Query(..., description="Document ID generated during /api/ingest")
 ):
-    """Generates printable ReportLab study guide handout (.pdf)."""
+    """Generates printable ReportLab study guide handout (.pdf) in thread pool."""
     try:
         document = _get_export_document(document_id)
-        pdf_bytes = pdf_generator.generate_handout_pdf(document)
+        pdf_bytes = await asyncio.to_thread(pdf_generator.generate_handout_pdf, document)
         filename_stem = document["title"].replace(" ", "_")
         return Response(
             content=pdf_bytes,

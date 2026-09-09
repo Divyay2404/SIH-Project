@@ -126,6 +126,9 @@ class TestFastAPIGatewaySetup(unittest.TestCase):
 
     def test_rag_query_pydantic_validation(self):
         """Verify /api/query request and response validation via Pydantic schemas."""
+        # Populate demo curriculum
+        self.client.post("/api/demo/load")
+
         # Valid 5-mark query
         payload = {"question": "Explain Binary Search Tree deletion algorithm", "marks": 5}
         res = self.client.post("/api/query", json=payload)

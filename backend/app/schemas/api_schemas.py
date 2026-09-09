@@ -29,6 +29,10 @@ class HealthCheckResponse(DictAccessibleBaseModel):
     status: str = Field(..., description="Service status", examples=["online"])
     system: str = Field(..., description="System identifier", examples=["StudyCopilot & StudyForge Engine"])
     version: str = Field(..., description="API Version", examples=["1.0.0"])
+    dependencies: Optional[Dict[str, bool]] = Field(default=None, description="Critical dependency availability")
+    pipeline_readiness: Optional[Dict[str, str]] = Field(default=None, description="Subsystem readiness state")
+    storage: Optional[Dict[str, Any]] = Field(default=None, description="Persistence storage telemetry")
+    ocr_runtime: Optional[Dict[str, Any]] = Field(default=None, description="OCR engine status")
 
 
 class RootHealthResponse(DictAccessibleBaseModel):

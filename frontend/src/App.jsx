@@ -11,7 +11,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
       {/* Top Navigation */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} activeDocument={activeDocument} />
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-6 pb-12 flex-1 w-full">

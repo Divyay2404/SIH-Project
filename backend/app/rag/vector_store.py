@@ -1,11 +1,24 @@
 """
-Chroma / Hybrid Vector Store Manager with Bounding Box Coordinate Metadata.
+Hybrid Semantic & Vector Store Manager with Bounding Box Coordinate Metadata.
 Stores chunk text alongside page numbers, document IDs, and bounding box coordinates [x0, y0, x1, y1].
+Backed by SQLite persistence and scikit-learn TF-IDF semantic embeddings.
+
+Enforces strict document_id scoping to guarantee complete cross-document isolation.
+Production retrieval initializes completely clean with zero implicit BST/demo data.
 """
 
 import math
 import re
 from typing import List, Dict, Any, Optional
+
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+
+from app.storage.database import db_manager
 
 STOP_WORDS = {
     "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
@@ -31,56 +44,43 @@ STOP_WORDS = {
 
 class VectorStoreManager:
     def __init__(self):
+        # Starts completely clean: no hardcoded BST chunks in production!
+        self.documents: List[Dict[str, Any]] = []
+        self._load_persisted_chunks()
+
+    def _load_persisted_chunks(self):
+        """Loads previously ingested chunks from SQLite persistence."""
+        try:
+            stored = db_manager.get_all_chunks()
+            if stored:
+                self.documents.extend(stored)
+        except Exception:
+            pass
+
+    def load_demo_knowledge(self):
+        """Explicitly seeds isolated BST demo curriculum data on demand."""
+        from app.demo.demo_data import DEMO_CHUNKS, DEMO_DOCUMENT_ID
+        if not self.has_document(DEMO_DOCUMENT_ID):
+            self.add_chunks(DEMO_CHUNKS, persist=False)
+
+    def clear(self):
+        """Clears in-memory documents."""
         self.documents = []
-        self._initialize_default_knowledge()
 
-    def _initialize_default_knowledge(self):
-        """Seed initial grounded knowledge base from B.Tech Binary Search Tree syllabus."""
-        self.documents = [
-            {
-                "id": "chunk_01",
-                "document_id": "doc_bst_chapter_01",
-                "document_name": "Binary_Search_Trees_Chapter.pdf",
-                "page": 1,
-                "text": "A Binary Search Tree (BST) is a binary tree where for every node X, all keys in the left subtree of X are less than key(X), and all keys in the right subtree of X are greater than key(X).",
-                "bbox": [50.0, 100.0, 500.0, 220.0],
-                "keywords": ["bst", "binary search tree", "definition", "property", "left subtree", "right subtree"]
-            },
-            {
-                "id": "chunk_02",
-                "document_id": "doc_bst_chapter_01",
-                "document_name": "Binary_Search_Trees_Chapter.pdf",
-                "page": 2,
-                "text": "BST Insertion Algorithm: To insert a key K into a BST, compare K with the root. If root is null, create a node. If K < root.key, recurse left. If K > root.key, recurse right.",
-                "bbox": [60.0, 150.0, 520.0, 300.0],
-                "keywords": ["insertion", "insert", "algorithm", "recurse", "root"]
-            },
-            {
-                "id": "chunk_03",
-                "document_id": "doc_bst_chapter_01",
-                "document_name": "Binary_Search_Trees_Chapter.pdf",
-                "page": 3,
-                "text": "BST Deletion Algorithm has 3 cases: Case 1 (Leaf Node): Remove directly. Case 2 (Single Child): Link parent to child. Case 3 (Two Children): Replace node value with its in-order successor (smallest node in right subtree) and recursively delete successor.",
-                "bbox": [80.0, 200.0, 540.0, 380.0],
-                "keywords": ["deletion", "delete", "remove", "in-order successor", "two children", "leaf node", "cases"]
-            },
-            {
-                "id": "chunk_04",
-                "document_id": "doc_bst_chapter_01",
-                "document_name": "Binary_Search_Trees_Chapter.pdf",
-                "page": 4,
-                "text": "Time Complexity Analysis of BST Operations: Search, Insertion, and Deletion take O(h) time where h is tree height. Best/Average case (Balanced BST) is O(log N). Worst case (Skewed BST) is O(N).",
-                "bbox": [70.0, 120.0, 510.0, 280.0],
-                "keywords": ["complexity", "time complexity", "o(log n)", "o(n)", "worst case", "average case", "height"]
-            }
-        ]
-
-    def add_chunks(self, chunks: List[Dict[str, Any]]):
-        """Add newly ingested PDF chunks into vector memory."""
+    def add_chunks(self, chunks: List[Dict[str, Any]], persist: bool = True):
+        """Add newly ingested chunks into vector memory and SQLite storage."""
         for idx, chunk in enumerate(chunks):
-            chunk["id"] = chunk.get("id") or f"ingested_chunk_{len(self.documents) + idx + 1}"
-            chunk["keywords"] = [w.lower() for w in chunk["text"].split() if len(w) > 3]
-            self.documents.append(chunk)
+            chunk["id"] = chunk.get("id") or f"chunk_{chunk.get('document_id', 'doc')}_{idx + 1}"
+            chunk["keywords"] = [w.lower() for w in chunk.get("text", "").split() if len(w) > 3]
+            # Avoid duplicate chunks
+            if not any(d.get("id") == chunk["id"] for d in self.documents):
+                self.documents.append(chunk)
+
+        if persist:
+            try:
+                db_manager.save_chunks(chunks)
+            except Exception:
+                pass
 
     def has_document(self, document_id: str) -> bool:
         """Confirms whether chunks associated with document_id exist in vector memory."""
@@ -96,8 +96,8 @@ class VectorStoreManager:
 
     def search(self, query: str, document_id: Optional[str] = None, top_k: int = 2) -> List[Dict[str, Any]]:
         """
-        Enforces strict document_id filtering and calculates similarity scores
-        between user query and knowledge base chunks scoped to the target document.
+        Enforces strict document_id filtering and computes hybrid semantic similarity
+        scores combining lexical overlap with TF-IDF vector embeddings.
 
         If document_id is provided, only chunks matching document_id are searched.
         If no chunks match document_id, an empty list is returned.
@@ -119,31 +119,58 @@ class VectorStoreManager:
         if not candidate_docs:
             return []
 
-        scored_chunks = []
+        # Step 1: Lexical keyword overlap scores
+        lexical_scores = []
         for doc in candidate_docs:
             text = doc.get("text", "").lower()
             doc_words = set(re.findall(r'\b[a-zA-Z0-9_-]+\b', text))
             keywords = set(k.lower() for k in doc.get("keywords", []))
 
-            # Word-level overlap similarity calculation
             matches = sum(1 for w in search_tokens if w in doc_words or w in keywords)
             if matches == 0:
-                scored_chunks.append({**doc, "score": 0.0})
+                lexical_scores.append(0.0)
                 continue
 
             score = matches / len(search_tokens)
-
-            # Boost score for domain terms (len > 3) that matched
             significant_terms = [w for w in search_tokens if len(w) > 3]
             if significant_terms:
                 term_hits = sum(1 for w in significant_terms if w in doc_words or w in keywords)
                 if term_hits > 0:
                     score += min(0.35 * (term_hits / len(significant_terms)), 0.45)
 
-            score = min(round(score, 2), 0.98)
-            scored_chunks.append({**doc, "score": score})
+            lexical_scores.append(min(round(score, 4), 0.98))
 
-        # Sort by score descending
+        # Step 2: TF-IDF vector cosine similarity (if scikit-learn available)
+        tfidf_scores = [0.0] * len(candidate_docs)
+        if SKLEARN_AVAILABLE and len(candidate_docs) >= 1:
+            try:
+                corpus = [doc.get("text", "") for doc in candidate_docs]
+                vectorizer = TfidfVectorizer(
+                    ngram_range=(1, 2),
+                    stop_words="english",
+                    sublinear_tf=True
+                )
+                tfidf_matrix = vectorizer.fit_transform(corpus)
+                query_vec = vectorizer.transform([query])
+                sims = cosine_similarity(query_vec, tfidf_matrix).flatten()
+                tfidf_scores = [round(float(s), 4) for s in sims]
+            except Exception:
+                pass
+
+        # Step 3: Hybrid Score Blending
+        scored_chunks = []
+        for idx, doc in enumerate(candidate_docs):
+            lex = lexical_scores[idx]
+            vec = tfidf_scores[idx]
+            # Blend: if both present, 60% lexical + 40% vector
+            if vec > 0:
+                blended = round(0.6 * lex + 0.4 * vec, 2)
+            else:
+                blended = round(lex, 2)
+
+            scored_chunks.append({**doc, "score": min(blended, 0.98)})
+
+        # Sort descending by score
         scored_chunks.sort(key=lambda x: x["score"], reverse=True)
         return scored_chunks[:top_k]
 
