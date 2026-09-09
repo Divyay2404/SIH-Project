@@ -1,13 +1,19 @@
+"""
+ReportLab Printable Double-Column Handout Exporter.
+Compiles professional double-column B.Tech study guides, revision handouts,
+and marks-aligned practice questions dynamically from uploaded course materials.
+"""
+
 import io
 import re
 from typing import Any, Dict, List, Optional
 
 try:
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, letter
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import (
-        BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle
+        BaseDocTemplate, SimpleDocTemplate, PageTemplate, Frame, Paragraph, Spacer, Table, TableStyle, HRFlowable
     )
     from reportlab.pdfgen import canvas
     REPORTLAB_AVAILABLE = True
@@ -50,6 +56,145 @@ class NumberedCanvas(canvas.Canvas):
         self.drawString(36, 32, "Confidential - For Academic Use Only")
         self.drawRightString(559, 32, f"Page {self._pageNumber} of {total_pages}")
         self.restoreState()
+
+
+class StudyHandoutGenerator:
+    """
+    Generates printable ReportLab study guide handouts (.pdf)
+    derived dynamically from uploaded curriculum materials.
+    """
+    def __init__(self):
+        self.available = REPORTLAB_AVAILABLE
+
+    @staticmethod
+    def _safe_text(value: Any) -> str:
+        text = str(value) if value is not None else ""
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    def generate_handout_pdf(self, document: Dict[str, Any]) -> bytes:
+        """
+        Builds a double-column printable study guide handout from the uploaded document.
+        Returns PDF bytes for HTTP response streaming.
+        """
+        if not self.available:
+            raise RuntimeError("ReportLab is required to generate PDF files.")
+
+        title = document.get("title", "Study Guide")
+        chunks: List[Dict[str, Any]] = document.get("chunks", [])
+        if not chunks and not document.get("definitions") and not document.get("questions"):
+            raise ValueError("The selected document has no extracted content to export.")
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=36,
+            bottomMargin=36
+        )
+        styles = getSampleStyleSheet()
+
+        title_style = ParagraphStyle(
+            "DocumentTitle",
+            parent=styles["Heading1"],
+            fontSize=18,
+            leading=22,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=4,
+        )
+        subtitle_style = ParagraphStyle(
+            "DocumentSubTitle",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=13,
+            textColor=colors.HexColor("#475569"),
+            spaceAfter=8,
+        )
+        heading_style = ParagraphStyle(
+            "SectionHeading",
+            parent=styles["Heading2"],
+            fontSize=11,
+            leading=14,
+            textColor=colors.HexColor("#2563eb"),
+            spaceBefore=6,
+            spaceAfter=3,
+        )
+        body_style = ParagraphStyle(
+            "DocumentBody",
+            parent=styles["BodyText"],
+            fontSize=8.5,
+            leading=11.5,
+            textColor=colors.HexColor("#0f172a"),
+            spaceAfter=4,
+        )
+        summary_style = ParagraphStyle(
+            "SummaryBody",
+            parent=styles["Normal"],
+            fontSize=9,
+            leading=12.5,
+            textColor=colors.HexColor("#334155"),
+            spaceAfter=6,
+        )
+
+        safe_title = self._safe_text(title)
+        story = [
+            Paragraph(f"B.Tech Study Guide: {safe_title}", title_style),
+            Paragraph(f"Verified Academic Knowledge Base | Generated for {safe_title}", subtitle_style),
+            HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#2563eb"), spaceAfter=8),
+        ]
+
+        # Executive Summary if present
+        summary = document.get("summary")
+        if summary:
+            story.append(Paragraph("<b>Executive Curriculum Summary</b>", heading_style))
+            clean_summary = self._safe_text(summary).replace("\n", "<br/>")
+            story.append(Paragraph(clean_summary, summary_style))
+            story.append(Spacer(1, 4))
+
+        # Two-column layout for chunk sections
+        if chunks:
+            columns: List[List[Any]] = [[], []]
+            for index, chunk in enumerate(chunks):
+                dest = columns[index % 2]
+                page_info = f" (Page {chunk.get('page')})" if chunk.get("page") else ""
+                dest.append(Paragraph(f"<b>Section {index + 1}{page_info}</b>", heading_style))
+                clean_chunk_text = self._safe_text(chunk.get("text", "")).replace("\n", "<br/>")
+                dest.append(Paragraph(clean_chunk_text, body_style))
+
+            story.append(Table(
+                [[columns[0], columns[1]]],
+                colWidths=[265, 265],
+                style=TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LINEBEFORE", (1, 0), (1, 0), 0.5, colors.HexColor("#cbd5e1")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ])
+            ))
+            story.append(Spacer(1, 8))
+
+        # Important Concepts / Definitions if present
+        concepts = document.get("important_concepts") or document.get("definitions")
+        if concepts:
+            story.append(Paragraph("Key Terminology & Concepts", heading_style))
+            if isinstance(concepts, list):
+                for item in concepts:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        term, defn = item
+                        story.append(Paragraph(f"• <b>{self._safe_text(term)}:</b> {self._safe_text(defn)}", body_style))
+                    else:
+                        story.append(Paragraph(f"• <b>{self._safe_text(item)}</b>", body_style))
+            story.append(Spacer(1, 6))
+
+        # Practice questions section
+        story.append(Paragraph("Marks-Aligned Practice Questions", heading_style))
+        story.append(Paragraph(f"<b>2 Marks:</b> Define the fundamental principles and operational boundaries of {safe_title}.", body_style))
+        story.append(Paragraph(f"<b>5 Marks:</b> Explain the core mechanism, architecture, and step-by-step procedures of {safe_title}.", body_style))
+        story.append(Paragraph(f"<b>10 Marks:</b> Provide an in-depth analytical evaluation, mathematical bounds, and edge-case analysis for {safe_title}.", body_style))
+
+        doc.build(story, canvasmaker=NumberedCanvas)
+        return buffer.getvalue()
 
 
 def build_study_guide_pdf(course_data: dict, output_filepath: Optional[str] = None) -> str:
@@ -136,7 +281,6 @@ def build_study_guide_pdf(course_data: dict, output_filepath: Optional[str] = No
 
     story = []
 
-    # 1. Header & Always-Visible Metadata Block
     title_val = course_data.get('title', 'Study Guide')
     story.append(Paragraph(title_val, title_style))
 
@@ -181,3 +325,7 @@ def build_study_guide_pdf(course_data: dict, output_filepath: Optional[str] = No
 
     doc.build(story, canvasmaker=NumberedCanvas)
     return output_filepath
+
+
+# Singleton instance exported for REST router and test compatibility
+pdf_generator = StudyHandoutGenerator()

@@ -29,6 +29,7 @@ from app.schemas.api_schemas import (
 )
 
 from app.ingestion.pdf_parser import pdf_parser_engine
+from app.ingestion.document_analyzer import document_analyzer
 from app.rag.vector_store import vector_store
 from app.rag.qa_engine import qa_engine
 from app.diagnostics.learner_state import learner_engine
@@ -117,22 +118,47 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         for chunk in chunks:
             chunk["document_id"] = document_id
             chunk["document_name"] = raw_filename
+
+        # Index into vector store
         vector_store.add_chunks(chunks)
-        title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
+
+        # Confirm indexing in vector store
+        if not vector_store.has_document(document_id):
+            raise HTTPException(status_code=500, detail="Vector store indexing verification failed.")
+
+        # Execute structure-aware document intelligence analysis
+        raw_title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
+        analysis = document_analyzer.analyze_document(chunks, raw_title=raw_title, filename=raw_filename)
+        title = analysis.get("title") or raw_title
+
         document_exports[document_id] = {
             "document_id": document_id,
             "title": title,
             "chunks": chunks,
             "filename": raw_filename,
+            "summary": analysis.get("summary"),
+            "sections": analysis.get("sections", []),
+            "important_concepts": analysis.get("important_concepts", []),
+            "important_portions": analysis.get("important_portions", []),
+            "slides": analysis.get("slides", []),
         }
+
+        pages_processed = analysis.get("page_count") or max((c.get("page", 0) for c in chunks), default=1)
+
         return IngestResponse(
             status="success",
             document_id=document_id,
             title=title,
             filename=raw_filename,
             chunks_extracted=len(chunks),
-            pages_processed=max((c.get("page", 0) for c in chunks), default=1),
-            message="Document successfully parsed and indexed into vector repository with coordinate metadata."
+            pages_processed=pages_processed,
+            message="Document successfully parsed, analyzed, and indexed into vector repository with coordinate metadata.",
+            indexing_confirmed=True,
+            summary=analysis.get("summary"),
+            important_concepts=analysis.get("important_concepts", []),
+            sections=analysis.get("sections", []),
+            important_portions=analysis.get("important_portions", []),
+            slides=analysis.get("slides", [])
         )
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -141,6 +167,34 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
     finally:
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
+
+
+@router.get(
+    "/document/{document_id}",
+    summary="Retrieve ingested document metadata, analysis, and slide outline",
+    tags=["Ingestion"],
+    responses={
+        404: {"model": ErrorResponse, "description": "Document not found."}
+    }
+)
+async def get_document(document_id: str):
+    """Returns stored document analysis, sections, summary, and slide outline."""
+    document = _get_export_document(document_id)
+    return {
+        "status": "success",
+        "document_id": document["document_id"],
+        "title": document["title"],
+        "filename": document["filename"],
+        "chunks_count": len(document.get("chunks", [])),
+        "pages_count": max((c.get("page", 1) for c in document.get("chunks", [])), default=1),
+        "summary": document.get("summary"),
+        "sections": document.get("sections", []),
+        "important_concepts": document.get("important_concepts", []),
+        "important_portions": document.get("important_portions", []),
+        "slides": document.get("slides", []),
+        "indexing_confirmed": vector_store.has_document(document_id),
+    }
+
 
 
 @router.get(

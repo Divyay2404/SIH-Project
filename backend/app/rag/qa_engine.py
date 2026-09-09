@@ -65,7 +65,7 @@ class MarksAwareRAGEngine:
             marks=marks
         )
 
-        doc_name = top_match.get("document_name") or "sample_bst_chapter.pdf"
+        doc_name = top_match.get("document_name") or "Uploaded_Document.pdf"
         page_num = top_match.get("page", 1)
         snippet = primary_context[:140] + "..." if len(primary_context) > 140 else primary_context
 
@@ -116,25 +116,28 @@ class MarksAwareRAGEngine:
         sentences = self._extract_sentences(context)
         lead_definition = sentences[0] if sentences else context.strip()
         supporting_facts = sentences[1:4] if len(sentences) > 1 else [lead_definition]
+        is_bst = "bst" in (context + " " + question).lower() or "binary search tree" in (context + " " + question).lower()
 
         if marks == 2:
             # 2-Mark Schema: Definition Scale (Concise 1-2 sentences + 1 concise example, strictly <50 words)
-            # Ensure definition is direct and concise
             definition_text = lead_definition
             if len(definition_text.split()) > 25:
-                # Trim to the first complete clause under 25 words
                 clauses = definition_text.split(': ')
                 definition_text = clauses[-1] if len(clauses) > 1 else definition_text[:120].rstrip() + "."
 
             # Synthesize concise example from context
-            if "case" in context.lower() or "leaf" in context.lower():
+            if is_bst and ("case" in context.lower() or "leaf" in context.lower()):
                 example_text = "Deleting a leaf node directly unlinks its parent pointer to NULL."
-            elif "algorithm" in context.lower() or "insert" in context.lower() or "recurse" in context.lower():
+            elif is_bst and ("algorithm" in context.lower() or "insert" in context.lower() or "recurse" in context.lower()):
                 example_text = "Inserting key 15 into root 20 recurses to the left branch."
             elif "o(" in context.lower() or "complexity" in context.lower():
                 example_text = "Balanced operations execute in O(log N) average time."
+            elif len(supporting_facts) > 0 and supporting_facts[0] != lead_definition:
+                example_text = supporting_facts[0]
+                if len(example_text.split()) > 20:
+                    example_text = " ".join(example_text.split()[:20]) + "."
             else:
-                example_text = f"Illustrates foundational invariant: {supporting_facts[0][:60]}."
+                example_text = f"Illustrates core specification: {lead_definition[:60]}."
 
             return (
                 "**2-MARK ANSWER (Definition Scale)**\n\n"
@@ -151,19 +154,19 @@ class MarksAwareRAGEngine:
             if not bullets:
                 bullets = [
                     f"• Foundational Principle: {lead_definition}",
-                    "• Operates recursively while upholding strict invariant constraints across subtrees.",
-                    "• Maintains average-case execution efficiency bounded by structure height."
+                    "• Operates according to verified syllabus constraints and specifications.",
+                    "• Preserves state invariants across operational boundaries."
                 ]
 
             bullet_block = "\n".join(bullets[:4])
 
             # Code / Process flow block derived from context
-            if "case" in context.lower() or "successor" in context.lower() or "delete" in context.lower():
+            if is_bst and ("case" in context.lower() or "successor" in context.lower() or "delete" in context.lower()):
                 process_example = (
                     "**Process Flow Example**:\n"
                     "`Target Key K -> Evaluate Node Degree -> Case 1 (Leaf), Case 2 (Single Child), or Case 3 (In-Order Successor Substitution).`"
                 )
-            elif "insert" in context.lower() or "algorithm" in context.lower():
+            elif is_bst and ("insert" in context.lower() or "algorithm" in context.lower()):
                 process_example = (
                     "**Code / Implementation Pattern**:\n"
                     "```cpp\n"
@@ -179,9 +182,10 @@ class MarksAwareRAGEngine:
                     "• Worst Case (Degenerate / Skewed): $\\mathcal{O}(N)$ linear scan"
                 )
             else:
+                grounding_text = (additional_context or context)[:150].strip()
                 process_example = (
                     f"**Grounding Reference**:\n"
-                    f"`{context[:150]}...`"
+                    f"`{grounding_text}...`"
                 )
 
             return (
@@ -194,15 +198,9 @@ class MarksAwareRAGEngine:
 
         else:
             # 10-Mark Schema: Comprehensive Essay Scale
-            # 1. Abstract & Academic Definition
-            # 2. Theoretical Principles & Core Advantages
-            # 3. Detailed Algorithm & System Mechanics
-            # 4. Step-by-Step Proof & Mathematical Analysis
-            # 5. Evaluative Conclusion & Recommendations
             combined_text = f"{context} {additional_context}".strip()
 
-            # Dynamic procedural breakdown
-            if "deletion" in context.lower() or "successor" in context.lower() or "delete" in context.lower():
+            if is_bst and ("deletion" in context.lower() or "successor" in context.lower() or "delete" in context.lower()):
                 algorithm_diagram = (
                     "```\n"
                     "             50                      50\n"
@@ -217,7 +215,18 @@ class MarksAwareRAGEngine:
                     "3. **Case 2 (Degree 1 - Single Child)**: Splice parent pointer directly to existing child.\n"
                     "4. **Case 3 (Degree 2 - Two Children)**: Identify In-Order Successor (smallest key in right subtree). Replace value and recursively delete successor."
                 )
-            elif "insertion" in context.lower() or "insert" in context.lower():
+                math_proof = (
+                    "• **Height vs Complexity Bound**: In a balanced tree of $N$ nodes, height $h = \\lceil \\log_2(N+1) \\rceil$. "
+                    "Every traversal path is bounded by height, giving guaranteed $\\mathcal{O}(\\log N)$ operations.\n"
+                    "• **Worst-Case Degradation**: Under skewed or pre-sorted input sequences, height degrades to $h = N$, "
+                    "resulting in worst-case $\\mathcal{O}(N)$ linear time complexity."
+                )
+                eval_conclusion = (
+                    "Based on grounded evidence, standard implementations deliver $\\mathcal{O}(\\log N)$ average performance. "
+                    "To safeguard against $\\mathcal{O}(N)$ degenerate skew, self-balancing tree variants (such as AVL or Red-Black trees) "
+                    "are recommended in production systems."
+                )
+            elif is_bst and ("insertion" in context.lower() or "insert" in context.lower()):
                 algorithm_diagram = (
                     "```\n"
                     "      Root (20)                     Root (20)\n"
@@ -232,20 +241,22 @@ class MarksAwareRAGEngine:
                     "3. **Right Branch Recurse**: If $K > \\text{node.key}$, recursively call insert on right child.\n"
                     "4. **Return Subtree Pointer**: Return unmodified parent pointer to preserve structure."
                 )
-            else:
-                algorithm_diagram = (
-                    f"**Operational Breakdown**:\n"
-                    f"• Primary Mechanism: {lead_definition}\n"
-                    f"• Implementation Flow: {supporting_facts[0] if supporting_facts else context}"
+                math_proof = (
+                    "• **Height vs Complexity Bound**: In a balanced tree of $N$ nodes, height $h = \\lceil \\log_2(N+1) \\rceil$.\n"
+                    "• **Worst-Case Degradation**: Under skewed inputs, height degrades to $h = N$."
                 )
-
-            # Mathematical analysis block
-            math_proof = (
-                "• **Height vs Complexity Bound**: In a balanced tree of $N$ nodes, height $h = \\lceil \\log_2(N+1) \\rceil$. "
-                "Every traversal path is bounded by height, giving guaranteed $\\mathcal{O}(\\log N)$ operations.\n"
-                "• **Worst-Case Degradation**: Under skewed or pre-sorted input sequences, height degrades to $h = N$, "
-                "resulting in worst-case $\\mathcal{O}(N)$ linear time complexity."
-            )
+                eval_conclusion = "Standard insertion delivers O(log N) operations on balanced configurations."
+            else:
+                steps = [f"{idx + 1}. **{s.split()[0]}**: {s}" for idx, s in enumerate(sentences[:4])]
+                algorithm_diagram = (
+                    f"**Operational Breakdown & System Mechanics**:\n"
+                    + "\n".join(steps if steps else [f"1. **Execution**: {lead_definition}"])
+                )
+                math_proof = (
+                    f"• **Theoretical Efficiency**: Evaluated under formal computational and operational parameters.\n"
+                    f"• **Boundary Invariants**: Context-verified guarantees derived from: `{supporting_facts[0] if supporting_facts else lead_definition}`"
+                )
+                eval_conclusion = f"Grounded textbook evidence establishes rigorous operational criteria for {question}. All system parameters conform to syllabus specifications."
 
             return (
                 "**10-MARK ANSWER (Comprehensive Essay Scale)**\n\n"
@@ -260,10 +271,9 @@ class MarksAwareRAGEngine:
                 "### 4. Step-by-Step Proof & Mathematical Analysis\n"
                 f"{math_proof}\n\n"
                 "### 5. Evaluative Conclusion & Recommendations\n"
-                "Based on grounded evidence, standard implementations deliver $\\mathcal{O}(\\log N)$ average performance. "
-                "To safeguard against $\\mathcal{O}(N)$ degenerate skew, self-balancing tree variants (such as AVL or Red-Black trees) "
-                "are recommended in production systems."
+                f"{eval_conclusion}"
             )
+
 
 
 qa_engine = MarksAwareRAGEngine()
