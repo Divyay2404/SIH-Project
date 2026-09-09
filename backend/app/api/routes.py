@@ -154,7 +154,7 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         parser = pptx_parser_engine
         parser_name = "PPTX"
     else:
-        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a PDF or modern PowerPoint (.pptx) lecture file.")
+        raise HTTPException(status_code=400, detail="Unsupported file format. Educator uploads currently support PDF documents only (or modern PowerPoint .pptx files).")
 
     temp_path = ""
     try:

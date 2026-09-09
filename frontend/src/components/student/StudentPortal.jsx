@@ -22,7 +22,9 @@ import {
   FileUp,
   AlertCircle,
   Loader2,
-  BookOpen
+  BookOpen,
+  X,
+  FileCheck
 } from 'lucide-react';
 import MarksSelector from './MarksSelector';
 import PdfViewer from './PdfViewer';

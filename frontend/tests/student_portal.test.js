@@ -23,6 +23,21 @@ describe('StudentPortal Component & Any-PDF RAG Workflow', () => {
     assert.ok(html.includes('10 Marks'));
   });
 
+  test('renders StudentPortal with active document without crashing', () => {
+    const sampleDoc = {
+      document_id: 'doc_chemistry_99',
+      title: 'Chemical Equilibrium',
+      filename: 'Chemistry_Equilibrium.pdf',
+      pages_count: 3,
+      chunks_count: 8
+    };
+    const html = renderToString(<StudentPortal activeDocument={sampleDoc} />);
+    assert.ok(html.includes('Chemical Equilibrium'));
+    assert.ok(html.includes('Chemistry_Equilibrium.pdf'));
+    assert.ok(html.includes('Active Document:'));
+    assert.ok(html.includes('Vector DB Indexed'));
+  });
+
   test('PdfViewer renders empty state when no document is active', () => {
     const html = renderToString(
       <PdfViewer activeDocument={null} onUploadClick={() => {}} />
