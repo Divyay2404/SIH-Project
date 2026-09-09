@@ -15,11 +15,16 @@ from app.schemas.api_schemas import RootHealthResponse, HealthCheckResponse
 ALLOWED_ORIGINS: List[str] = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 # Allow additional origins from environment variable if provided
-env_origins = os.getenv("CORS_ORIGINS")
-if env_origins:
+env_origins = os.getenv("CORS_ORIGINS", "")
+cors_allow_all = env_origins.strip() == "*" or os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
+cors_regex = os.getenv("CORS_ORIGIN_REGEX", r"^https:\/\/.*\.vercel\.app$")
+
+if env_origins and not cors_allow_all:
     ALLOWED_ORIGINS.extend([origin.strip() for origin in env_origins.split(",") if origin.strip()])
 
 app = FastAPI(
@@ -30,14 +35,24 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS Middleware to allow React Frontend connectivity
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS Middleware to allow React Frontend connectivity (Vercel & Local)
+if cors_allow_all:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_origin_regex=cors_regex if cors_regex else None,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Asynchronous Router Mounting
 app.include_router(router)
@@ -75,4 +90,6 @@ async def root_health_check() -> HealthCheckResponse:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", "8000"))
+    reload = os.getenv("ENVIRONMENT", "development").lower() == "development"
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=reload)
