@@ -55,6 +55,21 @@ class IngestResponse(DictAccessibleBaseModel):
     sections: Optional[List[str]] = Field(default_factory=list, description="Extracted section headings")
     important_portions: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Important excerpts and page references")
     slides: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Structured 10-slide outline for presentation")
+    pages: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Reconstructed structured pages with coordinates for PDF viewer")
+
+
+class DocumentSummaryItem(DictAccessibleBaseModel):
+    document_id: str = Field(..., description="Unique generated document identifier", examples=["doc_abc12345"])
+    filename: str = Field(..., description="Original filename", examples=["lecture_notes.pdf"])
+    title: str = Field(..., description="Derived or extracted document title", examples=["Operating Systems"])
+    pages_count: int = Field(..., description="Total pages in document", examples=[4])
+    chunks_count: int = Field(..., description="Number of indexed chunks", examples=[12])
+    indexing_confirmed: bool = Field(default=True, description="Whether document is verified indexed in Vector DB", examples=[True])
+
+
+class DocumentListResponse(DictAccessibleBaseModel):
+    status: str = Field(default="success", description="Response status", examples=["success"])
+    documents: List[DocumentSummaryItem] = Field(default_factory=list, description="List of available ingested documents")
 
 
 # ==========================================
@@ -87,9 +102,9 @@ class RAGQueryRequest(DictAccessibleBaseModel):
         examples=[5]
     )
     document_id: Optional[str] = Field(
-        default="doc_bst_chapter_01",
+        default=None,
         description="Target document scope identifier",
-        examples=["doc_bst_chapter_01"]
+        examples=["doc_abc12345"]
     )
 
 

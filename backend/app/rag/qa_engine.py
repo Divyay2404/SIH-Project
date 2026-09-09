@@ -258,14 +258,25 @@ class MarksAwareRAGEngine:
                 )
                 eval_conclusion = f"Grounded textbook evidence establishes rigorous operational criteria for {question}. All system parameters conform to syllabus specifications."
 
+            if is_bst:
+                principles = (
+                    f"• **Invariant Guarantee**: Strictly upholds structure invariants across all subtrees: {supporting_facts[0] if supporting_facts else lead_definition}\n"
+                    "• **Dynamic Allocation**: Hierarchical memory allocation without contiguous space overhead.\n"
+                    "• **Optimal Search Traversal**: Divides problem space logarithmically at each decision node."
+                )
+            else:
+                principles = (
+                    f"• **Foundational Principle**: {lead_definition}\n"
+                    f"• **Context Invariant**: {supporting_facts[0] if supporting_facts else 'Verified against course syllabus specifications.'}\n"
+                    f"• **Domain Application**: {supporting_facts[1] if len(supporting_facts) > 1 else 'Maintains operational and conceptual integrity across syllabus modules.'}"
+                )
+
             return (
                 "**10-MARK ANSWER (Comprehensive Essay Scale)**\n\n"
                 "### 1. Abstract & Academic Definition\n"
                 f"{lead_definition}\n\n"
                 "### 2. Theoretical Principles & Core Advantages\n"
-                f"• **Invariant Guarantee**: Strictly upholds structure invariants across all subtrees: {supporting_facts[0] if supporting_facts else lead_definition}\n"
-                "• **Dynamic Allocation**: Hierarchical memory allocation without contiguous space overhead.\n"
-                "• **Optimal Search Traversal**: Divides problem space logarithmically at each decision node.\n\n"
+                f"{principles}\n\n"
                 "### 3. Detailed Algorithm & System Mechanics\n"
                 f"{algorithm_diagram}\n\n"
                 "### 4. Step-by-Step Proof & Mathematical Analysis\n"

@@ -4,7 +4,6 @@ import {
   Target,
   Sparkles,
   CheckCircle2,
-  Eye,
   X,
   ZoomIn,
   ZoomOut,
@@ -15,82 +14,20 @@ import {
   Crosshair,
   Layers,
   Sun,
-  Moon
+  Moon,
+  UploadCloud
 } from 'lucide-react';
 
 const BASE_PAGE_WIDTH = 600;
 const BASE_PAGE_HEIGHT = 820;
 
-// Academic syllabus pages data
-const pagesData = [
-  {
-    page: 1,
-    chapter: "Chapter 4: Binary Trees & BST",
-    title: "4.1 Binary Search Trees: Definition & Core Invariants",
-    subheading: "Formal Definition, Strict Ordering Property & Vector Representation",
-    paragraphs: [
-      "A Binary Search Tree (BST) is a hierarchical node-based binary tree data structure with the strict ordering invariant:",
-      "• For any node X, every key stored in the left subtree of X is strictly less than key(X): ∀ y ∈ Left(X), Key(y) < Key(X).",
-      "• Every key stored in the right subtree of X is strictly greater than key(X): ∀ z ∈ Right(X), Key(z) > Key(X).",
-      "• Both the left and right subtrees must also recursively satisfy all Binary Search Tree properties."
-    ],
-    codeSnippet: `// BST Invariant Verification Function\nbool isBST(Node* root, int minVal, int maxVal) {\n    if (root == nullptr) return true;\n    if (root->data <= minVal || root->data >= maxVal) return false;\n    return isBST(root->left, minVal, root->data) &&\n           isBST(root->right, root->data, maxVal);\n}`,
-    diagramType: 'bst-overview',
-    bboxCitation: [50.0, 100.0, 500.0, 220.0]
-  },
-  {
-    page: 2,
-    chapter: "Chapter 4: Binary Trees & BST",
-    title: "4.2 BST Insertion Algorithm & Recursive Mechanics",
-    subheading: "Recursive Branch Traversal, Node Allocation & Base Conditions",
-    paragraphs: [
-      "Inserting a key K into a Binary Search Tree traverses downward until a leaf position is reached:",
-      "1. Base Condition: If root is NULL, allocate a new node with key K and return pointer.",
-      "2. Recurse Left: If K < root.key, recursively insert into left subtree: root.left = insert(root.left, K).",
-      "3. Recurse Right: If K > root.key, recursively insert into right subtree: root.right = insert(root.right, K).",
-      "4. Duplicate Guard: If K == root.key, ignore or update frequency counter depending on multiset policy."
-    ],
-    codeSnippet: `Node* insert(Node* node, int key) {\n    if (node == nullptr) return new Node(key);\n    if (key < node->key) node->left = insert(node->left, key);\n    else if (key > node->key) node->right = insert(node->right, key);\n    return node;\n}`,
-    diagramType: 'bst-insert',
-    bboxCitation: [60.0, 150.0, 520.0, 300.0]
-  },
-  {
-    page: 3,
-    chapter: "Chapter 4: Binary Trees & BST",
-    title: "4.3 BST Deletion Algorithm & In-Order Successor",
-    subheading: "Node Removal Mechanics Across Three Fundamental Topological Degrees",
-    paragraphs: [
-      "Deleting a target key K from a BST requires handling 3 distinct structural cases:",
-      "• Case 1 (Degree 0 - Leaf Node): Directly unlink and free memory; set parent pointer to NULL.",
-      "• Case 2 (Degree 1 - Single Child): Splice the parent pointer directly to the node's only child.",
-      "• Case 3 (Degree 2 - Two Children): Find the In-Order Successor (the minimum key in the right subtree). Copy successor key to target node, then recursively delete successor."
-    ],
-    codeSnippet: `// Case 3: In-Order Successor Substitution\nNode* minValNode = findMin(root->right);\nroot->key = minValNode->key;\nroot->right = deleteNode(root->right, minValNode->key);`,
-    diagramType: 'bst-delete',
-    bboxCitation: [80.0, 200.0, 540.0, 380.0]
-  },
-  {
-    page: 4,
-    chapter: "Chapter 4: Binary Trees & BST",
-    title: "4.4 Time & Space Complexity Analysis & Corner Cases",
-    subheading: "Balanced vs. Degenerate Trees, Recurrence Relations & Call Stack Bounds",
-    paragraphs: [
-      "The operational efficiency of BST operations directly correlates with tree height h:",
-      "• Balanced BST (Best/Average Case): Height h = ⌊log₂ N⌋. Search, Insert, and Delete operate in O(log N) time.",
-      "• Degenerate / Skewed BST (Worst Case): Height h = N. Operations degrade to linear O(N) traversal.",
-      "• Auxiliary Call Stack Space: Recursion consumes O(h) memory on the call stack."
-    ],
-    codeSnippet: `/* Complexity Table: BST vs AVL vs Red-Black */\nOperation     Average Case     Worst Case     Aux Space\nSearch        O(log N)         O(N)           O(h)\nInsertion     O(log N)         O(N)           O(h)\nDeletion      O(log N)         O(N)           O(h)`,
-    diagramType: 'bst-table',
-    bboxCitation: [70.0, 120.0, 510.0, 280.0]
-  }
-];
-
 export default function PdfViewer({
-  activeCitation,
+  activeDocument = null,
+  activeCitation = null,
   setActiveCitation,
-  selectedPage = 3,
-  setSelectedPage
+  selectedPage = 1,
+  setSelectedPage,
+  onUploadClick
 }) {
   const [zoom, setZoom] = useState(1.0);
   const [paperTheme, setPaperTheme] = useState('light'); // 'light' | 'dark'
@@ -102,9 +39,18 @@ export default function PdfViewer({
   const containerRef = useRef(null);
   const pulseTimerRef = useRef(null);
 
-  const currentPageObj = pagesData.find((p) => p.page === selectedPage) || pagesData[2];
+  // Compute pages list from active document
+  const rawPages = activeDocument?.pages || [];
+  const totalPages = activeDocument
+    ? (activeDocument.pages_count || (rawPages.length > 0 ? rawPages.length : 1))
+    : 0;
 
-  // Trigger intense animated pulse shockwave whenever citation reference changes or is re-clicked
+  // Resolve current page data
+  const currentPageObj = rawPages.find((p) => p.page === selectedPage) || (
+    rawPages.length > 0 ? rawPages[0] : null
+  );
+
+  // Trigger pulse shockwave whenever citation changes or is re-clicked
   useEffect(() => {
     if (activeCitation && activeCitation.page_number === selectedPage) {
       setIsPulsing(true);
@@ -113,7 +59,6 @@ export default function PdfViewer({
         setIsPulsing(false);
       }, 1800);
 
-      // Smooth scroll container to center the bounding box
       const scrollTimer = setTimeout(() => {
         if (highlightRef.current) {
           highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -133,7 +78,6 @@ export default function PdfViewer({
       if (!bbox || !Array.isArray(bbox) || bbox.length < 4) return null;
       const [rawX0, rawY0, rawX1, rawY1] = bbox;
 
-      // Detect if unit-normalized [0..1]
       const isUnit =
         rawX0 >= 0 &&
         rawX0 <= 1.01 &&
@@ -163,8 +107,8 @@ export default function PdfViewer({
 
       const left = normX0 * renderedWidth;
       const top = normY0 * renderedHeight;
-      const width = Math.max(24, (normX1 - normX0) * renderedWidth);
-      const height = Math.max(20, (normY1 - normY0) * renderedHeight);
+      const width = Math.max(28, (normX1 - normX0) * renderedWidth);
+      const height = Math.max(22, (normY1 - normY0) * renderedHeight);
 
       return {
         left,
@@ -183,10 +127,10 @@ export default function PdfViewer({
     [zoom]
   );
 
-  // Clean HTML5 Canvas Page Rendering Engine with High-DPI / Retina Crispness
+  // Clean HTML5 Canvas Page Rendering Engine with High-DPI / Crispness
   const renderCanvasPage = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !activeDocument) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -195,300 +139,92 @@ export default function PdfViewer({
     const renderedWidth = Math.round(BASE_PAGE_WIDTH * zoom);
     const renderedHeight = Math.round(BASE_PAGE_HEIGHT * zoom);
 
-    // Set backing store dimensions for sharp rendering
     canvas.width = Math.round(renderedWidth * dpr);
     canvas.height = Math.round(renderedHeight * dpr);
     canvas.style.width = `${renderedWidth}px`;
     canvas.style.height = `${renderedHeight}px`;
 
-    // Scale context by DPR and Zoom so drawing logic stays in BASE_PAGE coordinates (600 x 820)
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr * zoom, dpr * zoom);
 
-    // Color tokens based on paperTheme
     const isDark = paperTheme === 'dark';
     const bgPaper = isDark ? '#0f172a' : '#ffffff';
     const textMain = isDark ? '#f1f5f9' : '#0f172a';
     const textMuted = isDark ? '#94a3b8' : '#475569';
     const textSub = isDark ? '#64748b' : '#64748b';
     const borderCol = isDark ? '#1e293b' : '#e2e8f0';
-    const codeBg = isDark ? '#1e293b' : '#f8fafc';
-    const codeText = isDark ? '#38bdf8' : '#0369a1';
     const accentIndigo = isDark ? '#818cf8' : '#4f46e5';
 
-    // 1. Paper Background & Subtle Margin Guidelines
+    // 1. Paper Background & Margin Guidelines
     ctx.fillStyle = bgPaper;
     ctx.fillRect(0, 0, BASE_PAGE_WIDTH, BASE_PAGE_HEIGHT);
 
-    // Page Border
     ctx.strokeStyle = borderCol;
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, BASE_PAGE_WIDTH, BASE_PAGE_HEIGHT);
 
-    // 2. Academic Running Header
+    // 2. Running Header
+    const docTitle = (activeDocument.title || activeDocument.filename || 'STUDY DOCUMENT').toUpperCase();
     ctx.fillStyle = textSub;
     ctx.font = '600 9px ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
-    ctx.fillText('DATA STRUCTURES & ALGORITHMS • CS-302', 36, 32);
+    ctx.fillText(docTitle.slice(0, 48), 36, 32);
 
     ctx.textAlign = 'right';
-    ctx.fillText(`PAGE 4-0${currentPageObj.page}  |  OFFICIAL SYLLABUS`, BASE_PAGE_WIDTH - 36, 32);
+    ctx.fillText(`PAGE ${selectedPage} OF ${totalPages}  |  OFFICIAL SYLLABUS`, BASE_PAGE_WIDTH - 36, 32);
     ctx.textAlign = 'left';
 
-    // Header divider rule
     ctx.strokeStyle = borderCol;
     ctx.beginPath();
     ctx.moveTo(36, 40);
     ctx.lineTo(BASE_PAGE_WIDTH - 36, 40);
     ctx.stroke();
 
-    // 3. Chapter & Section Title
+    // 3. Section Title / Page Heading
+    const pageTitle = currentPageObj?.title || `Page ${selectedPage} Content`;
     ctx.fillStyle = accentIndigo;
-    ctx.font = '700 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(currentPageObj.chapter.toUpperCase(), 36, 62);
+    ctx.font = '700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(`SECTION ${selectedPage}`, 36, 62);
 
     ctx.fillStyle = textMain;
-    ctx.font = '700 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(currentPageObj.title, 36, 84);
+    ctx.font = '700 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillText(pageTitle.slice(0, 60), 36, 84);
 
-    ctx.fillStyle = textMuted;
-    ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(currentPageObj.subheading, 36, 102);
+    // 4. Render paragraphs extracted from the document
+    let cursorY = 114;
+    ctx.font = '400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
-    // 4. Document Paragraphs (Wrapped Cleanly)
-    let cursorY = 126;
-    ctx.font = '400 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-    currentPageObj.paragraphs.forEach((pText) => {
-      ctx.fillStyle = textMain;
-      const words = pText.split(' ');
-      let line = '';
-      const maxWidth = BASE_PAGE_WIDTH - 72;
-
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-          ctx.fillText(line, 36, cursorY);
-          line = words[n] + ' ';
-          cursorY += 18;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, 36, cursorY);
-      cursorY += 22;
-    });
-
-    // 5. Code & Algorithm Execution Box
-    cursorY += 4;
-    const codeBoxHeight = 88;
-    ctx.fillStyle = codeBg;
-    ctx.beginPath();
-    ctx.roundRect(36, cursorY, BASE_PAGE_WIDTH - 72, codeBoxHeight, 6);
-    ctx.fill();
-    ctx.strokeStyle = borderCol;
-    ctx.stroke();
-
-    // Code header label
-    ctx.fillStyle = accentIndigo;
-    ctx.font = '700 9px ui-monospace, monospace';
-    ctx.fillText('ALGORITHM LISTING 4.' + currentPageObj.page, 48, cursorY + 16);
-
-    // Code lines
-    ctx.fillStyle = codeText;
-    ctx.font = '400 10px ui-monospace, monospace';
-    const codeLines = currentPageObj.codeSnippet.split('\n');
-    let codeY = cursorY + 32;
-    codeLines.slice(0, 4).forEach((cLine) => {
-      ctx.fillText(cLine, 48, codeY);
-      codeY += 14;
-    });
-
-    cursorY += codeBoxHeight + 20;
-
-    // 6. Vector Diagrams Rendered Directly onto Canvas
-    if (currentPageObj.diagramType === 'bst-overview' || currentPageObj.diagramType === 'bst-delete') {
-      // Draw Binary Search Tree Diagram
-      ctx.fillStyle = isDark ? '#1e293b' : '#f8fafc';
-      ctx.beginPath();
-      ctx.roundRect(36, cursorY, BASE_PAGE_WIDTH - 72, 190, 8);
-      ctx.fill();
-      ctx.strokeStyle = borderCol;
-      ctx.stroke();
-
-      // Title of figure
+    const paragraphs = currentPageObj?.paragraphs || [];
+    if (paragraphs.length === 0) {
       ctx.fillStyle = textMuted;
-      ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      const figureTitle =
-        currentPageObj.page === 3
-          ? 'FIGURE 4.3: In-Order Successor Substitution (Key 50 Replaced with 60)'
-          : 'FIGURE 4.1: BST Structural Invariant Demonstration (Left < Root < Right)';
-      ctx.fillText(figureTitle, 48, cursorY + 22);
-
-      // Node coordinates for 3-level binary tree
-      const centerX = BASE_PAGE_WIDTH / 2;
-      const rootY = cursorY + 55;
-      const level2Y = cursorY + 110;
-      const level3Y = cursorY + 160;
-
-      const nodes = [
-        {
-          key: currentPageObj.page === 3 ? '60' : '50',
-          x: centerX,
-          y: rootY,
-          color: currentPageObj.page === 3 ? '#f97316' : accentIndigo,
-          label: currentPageObj.page === 3 ? 'Substituted Successor' : 'Root Node'
-        },
-        { key: '30', x: centerX - 120, y: level2Y, color: accentIndigo },
-        {
-          key: '70',
-          x: centerX + 120,
-          y: level2Y,
-          color: accentIndigo,
-          label: 'Right Subtree'
-        },
-        { key: '20', x: centerX - 160, y: level3Y, color: textMuted },
-        { key: '40', x: centerX - 80, y: level3Y, color: textMuted },
-        {
-          key: currentPageObj.page === 3 ? 'Pruned' : '60',
-          x: centerX + 80,
-          y: level3Y,
-          color: currentPageObj.page === 3 ? '#ef4444' : '#10b981',
-          label: currentPageObj.page === 3 ? 'Deleted Leaf' : 'In-Order Min'
-        },
-        { key: '80', x: centerX + 160, y: level3Y, color: textMuted }
-      ];
-
-      // Draw Edges
-      ctx.strokeStyle = isDark ? '#475569' : '#cbd5e1';
-      ctx.lineWidth = 1.5;
-
-      const drawEdge = (n1, n2) => {
-        ctx.beginPath();
-        ctx.moveTo(n1.x, n1.y);
-        ctx.lineTo(n2.x, n2.y);
-        ctx.stroke();
-      };
-
-      drawEdge(nodes[0], nodes[1]);
-      drawEdge(nodes[0], nodes[2]);
-      drawEdge(nodes[1], nodes[3]);
-      drawEdge(nodes[1], nodes[4]);
-      drawEdge(nodes[2], nodes[5]);
-      drawEdge(nodes[2], nodes[6]);
-
-      // Draw Nodes
-      nodes.forEach((node) => {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
-        ctx.fillStyle = isDark ? '#0f172a' : '#ffffff';
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = node.color;
-        ctx.stroke();
-
-        ctx.fillStyle = node.color;
-        ctx.font = '700 11px ui-monospace, monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(node.key, node.x, node.y);
-
-        if (node.label) {
-          ctx.font = '600 8.5px -apple-system, sans-serif';
-          ctx.fillStyle = textSub;
-          ctx.fillText(node.label, node.x, node.y - 22);
-        }
-      });
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-
-      cursorY += 210;
-    } else if (currentPageObj.diagramType === 'bst-table') {
-      // Draw Complexity Comparison Table
-      ctx.fillStyle = isDark ? '#1e293b' : '#f8fafc';
-      ctx.beginPath();
-      ctx.roundRect(36, cursorY, BASE_PAGE_WIDTH - 72, 160, 8);
-      ctx.fill();
-      ctx.strokeStyle = borderCol;
-      ctx.stroke();
-
-      ctx.fillStyle = textMuted;
-      ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText('TABLE 4.4: Operations Complexity Matrix (Height h = log₂ N vs N)', 48, cursorY + 22);
-
-      const tableRows = [
-        ['Operation', 'Best Case', 'Average Case', 'Worst Case', 'Auxiliary Space'],
-        ['Search(K)', 'Ω(1)', 'Θ(log N)', 'O(N)', 'O(h)'],
-        ['Insert(K)', 'Ω(1)', 'Θ(log N)', 'O(N)', 'O(h)'],
-        ['Delete(K)', 'Ω(1)', 'Θ(log N)', 'O(N)', 'O(h)'],
-        ['Traversal', 'Θ(N)', 'Θ(N)', 'Θ(N)', 'O(h)']
-      ];
-
-      let rowY = cursorY + 44;
-      const colWidths = [100, 95, 105, 95, 95];
-
-      tableRows.forEach((row, rIdx) => {
-        let colX = 48;
-        if (rIdx === 0) {
-          ctx.font = '700 9.5px -apple-system, sans-serif';
-          ctx.fillStyle = accentIndigo;
-        } else {
-          ctx.font = '500 9.5px ui-monospace, monospace';
-          ctx.fillStyle = textMain;
-        }
-
-        row.forEach((cell, cIdx) => {
-          ctx.fillText(cell, colX, rowY);
-          colX += colWidths[cIdx];
-        });
-
-        // Row border
-        ctx.strokeStyle = borderCol;
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(44, rowY + 6);
-        ctx.lineTo(BASE_PAGE_WIDTH - 44, rowY + 6);
-        ctx.stroke();
-
-        rowY += 22;
-      });
-
-      cursorY += 180;
+      ctx.fillText('(No text paragraphs detected on this page)', 36, cursorY);
     } else {
-      // Flow diagram for insertion
-      ctx.fillStyle = isDark ? '#1e293b' : '#f8fafc';
-      ctx.beginPath();
-      ctx.roundRect(36, cursorY, BASE_PAGE_WIDTH - 72, 160, 8);
-      ctx.fill();
-      ctx.strokeStyle = borderCol;
-      ctx.stroke();
-
-      ctx.fillStyle = textMuted;
-      ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText('FIGURE 4.2: Recursive Insertion Decision Tree', 48, cursorY + 22);
-
-      const steps = [
-        '1. Compare Key K against Node->key',
-        '2. Branch: If K < Node->key, recurse into Left Child branch',
-        '3. Branch: If K > Node->key, recurse into Right Child branch',
-        '4. Terminal: On encountering NULL pointer, allocate new Leaf Node(K)'
-      ];
-
-      let stepY = cursorY + 48;
-      steps.forEach((st) => {
-        ctx.fillStyle = accentIndigo;
-        ctx.fillRect(48, stepY - 8, 4, 14);
-
+      paragraphs.forEach((pText) => {
+        if (cursorY > BASE_PAGE_HEIGHT - 60) return;
         ctx.fillStyle = textMain;
-        ctx.font = '500 10.5px -apple-system, BlinkMacSystemFont, sans-serif';
-        ctx.fillText(st, 60, stepY + 3);
-        stepY += 26;
-      });
+        const words = String(pText).split(' ');
+        let line = '';
+        const maxWidth = BASE_PAGE_WIDTH - 72;
 
-      cursorY += 180;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && n > 0) {
+            ctx.fillText(line, 36, cursorY);
+            line = words[n] + ' ';
+            cursorY += 18;
+            if (cursorY > BASE_PAGE_HEIGHT - 60) break;
+          } else {
+            line = testLine;
+          }
+        }
+        if (cursorY <= BASE_PAGE_HEIGHT - 60) {
+          ctx.fillText(line, 36, cursorY);
+          cursorY += 22;
+        }
+      });
     }
 
-    // 7. Academic Footer Rule & Grounded Evidence Stamp
+    // 5. Academic Footer Rule & Grounded Evidence Stamp
     ctx.strokeStyle = borderCol;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -498,15 +234,15 @@ export default function PdfViewer({
 
     ctx.fillStyle = textSub;
     ctx.font = '600 8.5px ui-monospace, monospace';
-    ctx.fillText('STUDYCOPILOT GROUNDED SYLLABUS ARCHIVE • VERIFIED REPOSITORY ID: #BST-CS302', 36, BASE_PAGE_HEIGHT - 22);
+    ctx.fillText(`STUDYFORGE REPOSITORY • DOC ID: ${activeDocument.document_id || 'ACTIVE'}`, 36, BASE_PAGE_HEIGHT - 22);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = isDark ? '#34d399' : '#059669';
     ctx.fillText('✓ TEXTBOOK EVIDENCE CERTIFIED', BASE_PAGE_WIDTH - 36, BASE_PAGE_HEIGHT - 22);
     ctx.textAlign = 'left';
-  }, [selectedPage, zoom, paperTheme, currentPageObj]);
+  }, [selectedPage, zoom, paperTheme, activeDocument, totalPages, currentPageObj]);
 
-  // Re-render canvas whenever page, zoom, or theme changes
+  // Re-render canvas whenever page, zoom, theme, or activeDocument changes
   useEffect(() => {
     renderCanvasPage();
   }, [renderCanvasPage]);
@@ -514,7 +250,7 @@ export default function PdfViewer({
   // Bounding box data resolution
   const bboxToRender =
     activeCitation && activeCitation.page_number === selectedPage
-      ? activeCitation.bounding_box || currentPageObj.bboxCitation
+      ? activeCitation.bounding_box
       : null;
 
   const scaledBbox = bboxToRender ? getScaledBbox(bboxToRender) : null;
@@ -533,6 +269,30 @@ export default function PdfViewer({
     }
   };
 
+  // If no document is uploaded, render clear empty state
+  if (!activeDocument) {
+    return (
+      <div className="glass-panel rounded-2xl flex flex-col h-[720px] items-center justify-center p-8 border border-slate-800 shadow-2xl bg-slate-950/80 backdrop-blur-xl text-center">
+        <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4 shadow-lg shadow-indigo-500/10">
+          <FileText className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-bold text-slate-100 mb-2">No study material selected</h3>
+        <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
+          Upload any course notes, syllabus, or textbook PDF to inspect pages, examine formulas, and verify coordinate-grounded source citations.
+        </p>
+        {onUploadClick && (
+          <button
+            onClick={onUploadClick}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold shadow-lg shadow-indigo-500/20 transition-all duration-150"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload Course PDF</span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="glass-panel rounded-2xl flex flex-col h-[720px] overflow-hidden border border-slate-800 shadow-2xl bg-slate-950/80 backdrop-blur-xl">
       {/* Top Professional Toolbar */}
@@ -544,11 +304,11 @@ export default function PdfViewer({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-200 tracking-tight">
-                Binary_Search_Trees_Chapter.pdf
+              <span className="font-semibold text-slate-200 tracking-tight truncate max-w-[200px]" title={activeDocument.filename}>
+                {activeDocument.filename}
               </span>
               <span className="px-2 py-0.5 text-[10px] font-mono font-medium bg-slate-800 text-indigo-300 rounded-md border border-slate-700/80">
-                Page {selectedPage} of 4
+                Page {selectedPage} of {totalPages}
               </span>
             </div>
             <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
@@ -637,23 +397,29 @@ export default function PdfViewer({
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {[1, 2, 3, 4].map((p) => (
-            <button
-              key={p}
-              onClick={() => setSelectedPage && setSelectedPage(p)}
-              className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                selectedPage === p
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
-                  : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+          {totalPages <= 6 ? (
+            Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setSelectedPage && setSelectedPage(p)}
+                className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  selectedPage === p
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                    : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                }`}
+              >
+                {p}
+              </button>
+            ))
+          ) : (
+            <span className="px-2 text-xs font-mono text-slate-300">
+              {selectedPage} / {totalPages}
+            </span>
+          )}
 
           <button
-            onClick={() => setSelectedPage && setSelectedPage((p) => Math.min(4, p + 1))}
-            disabled={selectedPage >= 4}
+            onClick={() => setSelectedPage && setSelectedPage((p) => Math.min(totalPages, p + 1))}
+            disabled={selectedPage >= totalPages}
             className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 transition-colors"
             title="Next Page"
           >
@@ -701,7 +467,7 @@ export default function PdfViewer({
               {isPulsing && <div className="bbox-shockwave-ring" />}
 
               {/* Corner crosshairs for technical precision */}
-              <div className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-l-2 border-orange-400 rounded-tl-sm pointer-events-none" />
+              <div className="absolute -top-1.5 -left-1.5 w-3 h-3 border-t-2 border-orange-400 rounded-tl-sm pointer-events-none" />
               <div className="absolute -top-1.5 -right-1.5 w-3 h-3 border-t-2 border-r-2 border-orange-400 rounded-tr-sm pointer-events-none" />
               <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 border-b-2 border-l-2 border-orange-400 rounded-bl-sm pointer-events-none" />
               <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 border-b-2 border-r-2 border-orange-400 rounded-br-sm pointer-events-none" />
