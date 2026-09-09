@@ -26,6 +26,8 @@ from app.schemas.api_schemas import (
     TopicHeatmapItem,
     ReadinessResponse,
     ErrorResponse,
+    DocumentSummaryItem,
+    DocumentListResponse,
 )
 
 from app.ingestion.pdf_parser import pdf_parser_engine
@@ -43,6 +45,32 @@ router = APIRouter(prefix="/api")
 document_exports: Dict[str, Dict[str, Any]] = {}
 
 
+def _reconstruct_pages(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Reconstructs ordered page structures with paragraphs, headings, and bboxes for the PDF viewer."""
+    page_dict: Dict[int, Dict[str, Any]] = {}
+    for c in chunks:
+        p = c.get("page", 1)
+        if p not in page_dict:
+            page_dict[p] = {
+                "page": p,
+                "title": f"Page {p}",
+                "paragraphs": [],
+                "chunks": []
+            }
+        text = c.get("text", "").strip()
+        if not text:
+            continue
+        if c.get("is_heading") and page_dict[p]["title"] == f"Page {p}":
+            page_dict[p]["title"] = text[:80]
+        page_dict[p]["paragraphs"].append(text)
+        page_dict[p]["chunks"].append({
+            "text": text,
+            "bbox": c.get("bbox", [50.0, 100.0, 500.0, 220.0]),
+            "is_heading": c.get("is_heading", False)
+        })
+    return [page_dict[p] for p in sorted(page_dict.keys())]
+
+
 @router.get(
     "/health",
     response_model=HealthCheckResponse,
@@ -56,6 +84,28 @@ async def health_check() -> HealthCheckResponse:
         system="StudyCopilot & StudyForge Engine",
         version="1.0.0"
     )
+
+
+@router.get(
+    "/documents",
+    response_model=DocumentListResponse,
+    summary="List all available ingested documents",
+    tags=["Ingestion"]
+)
+async def list_documents() -> DocumentListResponse:
+    """Returns list of all available ingested documents with basic metadata for selection."""
+    docs = []
+    for doc_id, doc in document_exports.items():
+        pages_count = max((c.get("page", 1) for c in doc.get("chunks", [])), default=1)
+        docs.append(DocumentSummaryItem(
+            document_id=doc_id,
+            filename=doc.get("filename", "document.pdf"),
+            title=doc.get("title", "Untitled Document"),
+            pages_count=pages_count,
+            chunks_count=len(doc.get("chunks", [])),
+            indexing_confirmed=vector_store.has_document(doc_id)
+        ))
+    return DocumentListResponse(status="success", documents=docs)
 
 
 @router.post(
@@ -130,6 +180,7 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
         raw_title = Path(raw_filename).stem.replace("_", " ").strip() or "Uploaded curriculum material"
         analysis = document_analyzer.analyze_document(chunks, raw_title=raw_title, filename=raw_filename)
         title = analysis.get("title") or raw_title
+        pages_reconstructed = _reconstruct_pages(chunks)
 
         document_exports[document_id] = {
             "document_id": document_id,
@@ -141,6 +192,7 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
             "important_concepts": analysis.get("important_concepts", []),
             "important_portions": analysis.get("important_portions", []),
             "slides": analysis.get("slides", []),
+            "pages": pages_reconstructed,
         }
 
         pages_processed = analysis.get("page_count") or max((c.get("page", 0) for c in chunks), default=1)
@@ -158,7 +210,8 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
             important_concepts=analysis.get("important_concepts", []),
             sections=analysis.get("sections", []),
             important_portions=analysis.get("important_portions", []),
-            slides=analysis.get("slides", [])
+            slides=analysis.get("slides", []),
+            pages=pages_reconstructed
         )
     except Exception as e:
         if isinstance(e, HTTPException):
@@ -192,6 +245,7 @@ async def get_document(document_id: str):
         "important_concepts": document.get("important_concepts", []),
         "important_portions": document.get("important_portions", []),
         "slides": document.get("slides", []),
+        "pages": document.get("pages") or _reconstruct_pages(document.get("chunks", [])),
         "indexing_confirmed": vector_store.has_document(document_id),
     }
 

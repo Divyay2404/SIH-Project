@@ -16,9 +16,13 @@ import {
   RotateCcw,
   CheckCircle2,
   ChevronRight,
-  ExternalLink,
-  SplitSquareVertical,
-  Trash2
+  ChevronDown,
+  Trash2,
+  UploadCloud,
+  FileUp,
+  AlertCircle,
+  Loader2,
+  BookOpen
 } from 'lucide-react';
 import MarksSelector from './MarksSelector';
 import PdfViewer from './PdfViewer';
@@ -27,40 +31,51 @@ import { apiUrl } from '../../config/api';
 
 export default function StudentPortal() {
   const [selectedMarks, setSelectedMarks] = useState(5);
-  const [selectedPage, setSelectedPage] = useState(3);
+  const [selectedPage, setSelectedPage] = useState(1);
   const [activeCitation, setActiveCitation] = useState(null);
-  const [activeDocumentId, setActiveDocumentId] = useState('doc_bst_chapter_01');
+  const [activeDocumentId, setActiveDocumentId] = useState(null);
+  const [activeDocument, setActiveDocument] = useState(null);
+  const [availableDocuments, setAvailableDocuments] = useState([]);
   const [inputQuery, setInputQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState("");
+  const [uploadError, setUploadError] = useState(null);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   // Split-Screen Layout State
-  // layoutMode: 'split' (side-by-side) | 'chat' (full chat) | 'pdf' (full document)
   const [layoutMode, setLayoutMode] = useState('split');
-  // splitRatio: percentage width of the left chat panel (25% to 75%)
   const [splitRatio, setSplitRatio] = useState(58);
   const [isDragging, setIsDragging] = useState(false);
-  // mobileTab: 'chat' | 'pdf' for viewports under lg breakpoint
   const [mobileTab, setMobileTab] = useState('chat');
   const [citationNotification, setCitationNotification] = useState(null);
 
   const containerRef = useRef(null);
   const pdfContainerRef = useRef(null);
   const chatMessagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const [messages, setMessages] = useState([
-    {
-      sender: 'bot',
-      marks: 5,
-      abstain: false,
-      text: "**5-MARK ANSWER (Concept Scale)**\n\n**Overview**: BST Deletion removes a target node while maintaining the BST ordering invariant (`Left < Root < Right`).\n\n**Key Cases**:\n• **Case 1 (Leaf Node)**: Delete node directly by setting parent reference to NULL.\n• **Case 2 (Single Child)**: Replace node pointer directly with its child.\n• **Case 3 (Two Children)**: Substitute node key with its **In-Order Successor** (smallest key in right subtree), then recursively delete successor.\n\n**Process Flow**:\n`Delete node 50 -> Find min in right subtree (60) -> Replace 50 with 60 -> Delete original 60.`",
-      citation: {
-        page_number: 3,
-        bounding_box: [80.0, 200.0, 540.0, 380.0],
-        snippet: "BST Deletion Algorithm Case 1, 2, 3..."
+  const [messages, setMessages] = useState([]);
+
+  // Fetch available documents from backend
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/api/documents'));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        if (Array.isArray(data.documents)) {
+          setAvailableDocuments(data.documents);
+        }
       }
+    } catch (err) {
+      console.warn('Could not retrieve available documents:', err.message);
     }
-  ]);
+  }, []);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   // Auto-scroll chat feed to latest message
   useEffect(() => {
@@ -82,7 +97,6 @@ export default function StudentPortal() {
       if (!isDragging || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const newRatio = ((clientX - rect.left) / rect.width) * 100;
-      // Clamp between 25% and 75%
       if (newRatio >= 25 && newRatio <= 75) {
         setSplitRatio(Math.round(newRatio));
       }
@@ -123,81 +137,154 @@ export default function StudentPortal() {
     setLayoutMode('split');
   };
 
-  // Client-side grounded RAG fallback generator to guarantee questions are ALWAYS answered
-  const generateGroundedAnswer = (queryText, marks, documentId = activeDocumentId) => {
-    const qLower = queryText.toLowerCase();
+  // Upload PDF Handler
+  const handleFileUpload = async (file) => {
+    if (!file) return;
 
-    // If query is targeted to an unknown document or outside active scope, abstain
-    if (documentId && documentId !== 'doc_bst_chapter_01') {
-      return {
-        sender: 'bot',
-        marks: marks,
-        abstain: true,
-        text: "❌ **Abstention Gate Triggered**: The requested query is not supported by verified textbook evidence in the syllabus repository.",
-        citation: null
-      };
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setUploadError('Invalid file format. Student Portal supports PDF course materials only (.pdf).');
+      return;
     }
 
-    // Off-topic refusal check
-    if (qLower.includes("cake") || qLower.includes("bake") || qLower.includes("movie") || qLower.includes("game") || qLower.includes("cook")) {
-      return {
-        sender: 'bot',
-        marks: marks,
-        abstain: true,
-        text: "❌ **Abstention Gate Triggered**: The requested query is not supported by verified textbook evidence in the syllabus repository.",
-        citation: null
-      };
+    if (file.size === 0) {
+      setUploadError('The uploaded PDF file is empty (0 bytes). Please upload a valid document.');
+      return;
     }
 
-    if (qLower.includes("delete") || qLower.includes("deletion") || qLower.includes("remove")) {
-      if (marks === 2) {
-        return {
-          sender: 'bot',
-          marks: 2,
-          abstain: false,
-          text: "**2-MARK ANSWER (Definition Scale)**\n\n**Definition**: BST Deletion removes a target key from a Binary Search Tree while ensuring all left descendants remain smaller and right descendants remain larger.\n**Example**: Deleting a leaf node requires simply setting its parent pointer to NULL.",
-          citation: { page_number: 3, bounding_box: [80.0, 200.0, 540.0, 380.0], snippet: "BST Deletion Algorithm Case 1, 2, 3..." }
-        };
-      } else if (marks === 5) {
-        return {
-          sender: 'bot',
-          marks: 5,
-          abstain: false,
-          text: "**5-MARK ANSWER (Concept Scale)**\n\n**Overview**: BST Deletion removes a target node while preserving the BST ordering invariant.\n\n**Key Structural Rules**:\n• **Case 1 (Leaf Node)**: Delete node directly by setting parent reference to NULL.\n• **Case 2 (Single Child)**: Replace node pointer directly with its child.\n• **Case 3 (Two Children)**: Substitute node key with its **In-Order Successor** (smallest key in right subtree), then recursively delete successor.\n\n**Process Flow**:\n`Delete node 50 -> Find min in right subtree (60) -> Replace 50 with 60 -> Delete original 60.`",
-          citation: { page_number: 3, bounding_box: [80.0, 200.0, 540.0, 380.0], snippet: "BST Deletion Algorithm Case 1, 2, 3..." }
-        };
-      } else {
-        return {
-          sender: 'bot',
-          marks: 10,
-          abstain: false,
-          text: "**10-MARK ANSWER (Comprehensive Essay Scale)**\n\n### 1. Abstract & Academic Definition\nA **Binary Search Tree (BST)** deletion algorithm removes a specified node $N$ while guaranteeing that for all remaining nodes $X$: $\\text{Key(Left Subtree)} < \\text{Key}(X) < \\text{Key(Right Subtree)}$.\n\n### 2. Algorithm Step Mechanics\n```\n             50                      50\n           /    \\                  /    \\\n         30      70     =====>   30      60  (Successor Substituted)\n                /  \\                    /  \\\n              60    80                 --   80\n```\n1. **Locate Node**: Recurse down tree matching target key $K$.\n2. **Degree Evaluation**:\n   - *Degree 0 (Leaf)*: Set parent pointer to NULL.\n   - *Degree 1 (One Child)*: Link parent pointer to existing child.\n   - *Degree 2 (Two Children)*: Find In-Order Successor (min node in right subtree). Copy value to target node, recursively delete successor.\n\n### 3. Time & Space Complexity Analysis\n• **Time Complexity**: Average Case $\\mathcal{O}(\\log N)$ for balanced trees. Worst Case $\\mathcal{O}(N)$ for skewed trees.\n• **Space Complexity**: Auxiliary recursive call stack space $\\mathcal{O}(h)$.",
-          citation: { page_number: 3, bounding_box: [80.0, 200.0, 540.0, 380.0], snippet: "BST Deletion Algorithm Case 1, 2, 3..." }
-        };
+    setUploading(true);
+    setUploadError(null);
+    setUploadPhase('Uploading PDF to gateway...');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      setUploadPhase('Processing PDF with PyMuPDF & OCR, indexing vectors...');
+      let res;
+      try {
+        res = await fetch(apiUrl('/api/ingest'), {
+          method: 'POST',
+          body: formData
+        });
+      } catch (netErr) {
+        throw new Error('Backend service unreachable. Please ensure the FastAPI server is running.');
       }
-    } else if (qLower.includes("insert") || qLower.includes("insertion")) {
-      return {
-        sender: 'bot',
-        marks: marks,
-        abstain: false,
-        text: `**${marks}-MARK ANSWER (Grounded)**\n\n**BST Insertion Algorithm**:\nTo insert a key $K$ into a Binary Search Tree, recursively compare $K$ against current node starting from root:\n1. If root is NULL, create a new node with key $K$.\n2. If $K < \\text{root.key}$, recurse into left subtree: \`root.left = insert(root.left, K)\`.\n3. If $K > \\text{root.key}$, recurse into right subtree: \`root.right = insert(root.right, K)\`.\n4. Return root pointer.\n\n**Complexity**: Average $\\mathcal{O}(\\log N)$, Worst $\\mathcal{O}(N)$.`,
-        citation: { page_number: 2, bounding_box: [60.0, 150.0, 520.0, 300.0], snippet: "BST Insertion Algorithm..." }
+
+      const contentType = res.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
+      if (!res.ok) {
+        let errorMsg = `Server error HTTP ${res.status}`;
+        if (isJson) {
+          try {
+            const errorPayload = await res.json();
+            errorMsg = errorPayload.detail || errorPayload.message || errorMsg;
+          } catch (_) {}
+        }
+        if (res.status === 404) {
+          errorMsg = 'Ingestion endpoint not found (HTTP 404). Please check backend deployment and VITE_API_BASE_URL.';
+        } else if ([502, 503, 504].includes(res.status)) {
+          errorMsg = `Gateway error (HTTP ${res.status}). Ingestion service temporarily unavailable.`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      if (!isJson) {
+        throw new Error('Unexpected response format received from ingestion gateway.');
+      }
+
+      const data = await res.json();
+      if (!data.document_id) {
+        throw new Error('Ingestion completed but did not return a valid document_id.');
+      }
+
+      const newDoc = {
+        document_id: data.document_id,
+        title: data.title || file.name.replace('.pdf', ''),
+        filename: data.filename || file.name,
+        pages_count: data.pages_processed || (data.pages ? data.pages.length : 1),
+        chunks_count: data.chunks_extracted || 0,
+        indexing_confirmed: Boolean(data.indexing_confirmed),
+        summary: data.summary || '',
+        important_concepts: data.important_concepts || [],
+        sections: data.sections || [],
+        pages: data.pages || []
       };
-    } else {
-      // General grounded answer fallback
-      return {
-        sender: 'bot',
-        marks: marks,
-        abstain: false,
-        text: `**${marks}-MARK ANSWER (Grounded Course Response)**\n\n**Overview**: ${queryText}\n\n**Grounded Syllabi Facts**:\n• Binary Search Trees maintain strict ordered key relationships across all left and right subtrees.\n• Searching, Insertion, and Deletion perform in $\\mathcal{O}(\\log N)$ average time complexity.\n• In-Order traversal yields sorted key order.`,
-        citation: { page_number: 1, bounding_box: [50.0, 100.0, 500.0, 220.0], snippet: "Chapter 4 BST Definitions..." }
-      };
+
+      setActiveDocument(newDoc);
+      setActiveDocumentId(data.document_id);
+      setSelectedPage(1);
+      setActiveCitation(null);
+      setMessages([
+        {
+          sender: 'bot',
+          marks: selectedMarks,
+          abstain: false,
+          text: `📚 **Active Document Loaded**: **${newDoc.title}** (${newDoc.filename})\n\n• **Pages Processed**: ${newDoc.pages_count}\n• **Indexed Chunks**: ${newDoc.chunks_count} chunks verified in Vector DB\n\nAsk any question based specifically on this uploaded document. Select 2, 5, or 10 marks to scale the answer depth!`,
+          citation: null
+        }
+      ]);
+
+      // Refresh documents list
+      fetchDocuments();
+    } catch (err) {
+      setUploadError(err.message || 'PDF ingestion failed.');
+    } finally {
+      setUploading(false);
+      setUploadPhase('');
     }
   };
 
-  // Handle sending query reliably with backend + client fallback
+  // Switch Active Document
+  const handleSelectDocument = async (docId) => {
+    if (!docId || docId === activeDocumentId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/api/document/${encodeURIComponent(docId)}`));
+      if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+        const data = await res.json();
+        const switchedDoc = {
+          document_id: data.document_id,
+          title: data.title,
+          filename: data.filename,
+          pages_count: data.pages_count,
+          chunks_count: data.chunks_count,
+          indexing_confirmed: data.indexing_confirmed,
+          summary: data.summary,
+          sections: data.sections,
+          important_concepts: data.important_concepts,
+          pages: data.pages || []
+        };
+        setActiveDocument(switchedDoc);
+        setActiveDocumentId(data.document_id);
+        setSelectedPage(1);
+        setActiveCitation(null);
+        setMessages([
+          {
+            sender: 'bot',
+            marks: selectedMarks,
+            abstain: false,
+            text: `🔄 **Active Document Switched**: **${switchedDoc.title}** (${switchedDoc.filename})\n\nPrevious context cleared. Q&A retrieval is now strictly restricted to this document.`,
+            citation: null
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error('Failed to load document metadata:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Query Submission strictly scoped to activeDocumentId
   const handleSendQuery = async (queryText = inputQuery) => {
     if (!queryText || !queryText.trim()) return;
+
+    if (!activeDocumentId) {
+      setUploadError('Please upload or select a study document before asking questions.');
+      return;
+    }
     
     const userMsg = { sender: 'user', text: queryText };
     setMessages(prev => [...prev, userMsg]);
@@ -211,11 +298,14 @@ export default function StudentPortal() {
         body: JSON.stringify({
           question: queryText,
           marks: selectedMarks,
-          document_id: activeDocumentId || 'doc_bst_chapter_01'
+          document_id: activeDocumentId
         })
       });
 
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
+      if (res.ok && isJson) {
         const data = await res.json();
         const botMsg = {
           sender: 'bot',
@@ -229,18 +319,35 @@ export default function StudentPortal() {
           handleCitationClick(data.citation, false);
         }
       } else {
-        const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks, activeDocumentId);
-        setMessages(prev => [...prev, fallbackMsg]);
-        if (fallbackMsg.citation) {
-          handleCitationClick(fallbackMsg.citation, false);
+        let errorMsg = `Server error HTTP ${res.status}`;
+        if (isJson) {
+          try {
+            const errData = await res.json();
+            errorMsg = errData.detail || errData.message || errorMsg;
+          } catch (_) {}
         }
+        setMessages(prev => [
+          ...prev,
+          {
+            sender: 'bot',
+            marks: selectedMarks,
+            abstain: true,
+            text: `❌ **Error**: ${errorMsg}`,
+            citation: null
+          }
+        ]);
       }
     } catch (err) {
-      const fallbackMsg = generateGroundedAnswer(queryText, selectedMarks, activeDocumentId);
-      setMessages(prev => [...prev, fallbackMsg]);
-      if (fallbackMsg.citation) {
-        handleCitationClick(fallbackMsg.citation, false);
-      }
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: 'bot',
+          marks: selectedMarks,
+          abstain: true,
+          text: `❌ **Connection Failure**: Unable to reach backend RAG query endpoint (${err.message}).`,
+          citation: null
+        }
+      ]);
     } finally {
       setLoading(false);
     }
@@ -252,12 +359,10 @@ export default function StudentPortal() {
     setActiveCitation({ ...citation, triggerTimestamp: Date.now() });
     setSelectedPage(citation.page_number);
 
-    // If in chat-only mode, restore split layout so PDF viewer is immediately visible
     if (layoutMode === 'chat') {
       setLayoutMode('split');
     }
 
-    // On mobile devices, toggle active tab to PDF viewer
     setMobileTab('pdf');
 
     if (userInitiated) {
@@ -265,7 +370,6 @@ export default function StudentPortal() {
       setTimeout(() => setCitationNotification(null), 3000);
     }
 
-    // Smoothly scroll the PDF container into view
     setTimeout(() => {
       if (pdfContainerRef.current) {
         pdfContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -280,12 +384,67 @@ export default function StudentPortal() {
 
   return (
     <div ref={containerRef} className="space-y-4">
+      {/* Hidden File Input for PDF Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            handleFileUpload(e.target.files[0]);
+            e.target.value = '';
+          }
+        }}
+      />
+
       {/* Workspace Top Navigation & Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 glass-panel rounded-2xl border border-slate-800 shadow-md">
-        {/* Left: Marks Selector */}
+        {/* Left: Marks Selector, Document Switcher & Upload Trigger */}
         <div className="flex flex-wrap items-center gap-3">
           <MarksSelector selectedMarks={selectedMarks} setSelectedMarks={setSelectedMarks} />
-          
+
+          {/* Upload New Document Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-semibold shadow-md shadow-indigo-500/20 disabled:opacity-50 transition-all duration-150"
+            title="Upload any course or syllabus PDF"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Ingesting PDF...</span>
+              </>
+            ) : (
+              <>
+                <UploadCloud className="w-4 h-4" />
+                <span>Upload PDF</span>
+              </>
+            )}
+          </button>
+
+          {/* Document Switcher Dropdown */}
+          {availableDocuments.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs">
+              <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+              <select
+                value={activeDocumentId || ''}
+                onChange={(e) => handleSelectDocument(e.target.value)}
+                className="bg-transparent text-slate-200 text-xs font-medium focus:outline-none cursor-pointer max-w-[180px] truncate"
+                title="Switch active study document"
+              >
+                <option value="" disabled>Select Study Document</option>
+                {availableDocuments.map((doc) => (
+                  <option key={doc.document_id} value={doc.document_id} className="bg-slate-900 text-slate-200">
+                    {doc.title || doc.filename}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Diagnostic Quiz Button */}
           <button
             onClick={() => setIsQuizOpen(true)}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-500/60 text-xs font-semibold shadow-lg shadow-amber-500/10 transition-all duration-150"
@@ -298,7 +457,7 @@ export default function StudentPortal() {
 
         {/* Right: Split Layout Controls */}
         <div className="flex items-center gap-2">
-          {/* Preset Width Ratios (Visible when in split mode on desktop) */}
+          {/* Preset Width Ratios */}
           <div className="hidden xl:flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold text-slate-400">
             <span className="px-2 text-[10px] text-slate-400">Split:</span>
             <button
@@ -387,7 +546,51 @@ export default function StudentPortal() {
         </div>
       </div>
 
-      {/* Mobile / Tablet Tab Toggle (< lg breakpoint) */}
+      {/* Upload Progress & Error Notification */}
+      {uploading && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-300 text-xs font-medium animate-fadeIn">
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />
+          <span>{uploadPhase}</span>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-medium animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{uploadError}</span>
+          </div>
+          <button
+            onClick={() => setUploadError(null)}
+            className="text-rose-400 hover:text-rose-200 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Active Document Status Indicator */}
+      {activeDocument && (
+        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs">
+          <div className="flex items-center gap-2 truncate">
+            <FileCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-slate-400">Active Document:</span>
+            <span className="font-semibold text-slate-200 truncate">{activeDocument.title}</span>
+            <span className="text-slate-500 font-mono text-[11px]">({activeDocument.filename})</span>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+              {activeDocument.pages_count} Pages
+            </span>
+            <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Vector DB Indexed</span>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Tab Switcher */}
       <div className="lg:hidden flex items-center p-1 bg-slate-900/90 rounded-xl border border-slate-800 shadow-sm">
         <button
           onClick={() => setMobileTab('chat')}
@@ -469,7 +672,6 @@ export default function StudentPortal() {
                   </button>
                 )}
 
-                {/* Quick Toggle to Full Chat or Restore Split */}
                 <button
                   onClick={() => setLayoutMode(layoutMode === 'chat' ? 'split' : 'chat')}
                   className="hidden lg:flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
@@ -494,11 +696,52 @@ export default function StudentPortal() {
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
-                  <Bot className="w-12 h-12 text-slate-700 mb-3" />
-                  <p className="text-sm font-semibold text-slate-400">Ask a question to begin studying</p>
-                  <p className="text-xs text-slate-600 mt-1 max-w-xs">
-                    Answers are strictly grounded in textbook evidence and scaled according to {selectedMarks} marks.
+                  <FileText className="w-12 h-12 text-slate-700 mb-3" />
+                  <p className="text-sm font-semibold text-slate-300">
+                    {activeDocumentId
+                      ? "Ask any question from this document"
+                      : "No study material selected. Upload a PDF to start studying."}
                   </p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
+                    {activeDocumentId
+                      ? `Answers are strictly grounded in ${activeDocument?.title || 'the active document'} and scaled according to ${selectedMarks} marks.`
+                      : "Upload any course syllabus or textbook PDF to begin marks-aware Q&A and coordinate-grounded citation inspection."}
+                  </p>
+
+                  {!activeDocumentId && (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDraggingFile(true);
+                      }}
+                      onDragLeave={() => setIsDraggingFile(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingFile(false);
+                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                          handleFileUpload(e.dataTransfer.files[0]);
+                        }
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`mt-6 w-full max-w-sm p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 ${
+                        isDraggingFile
+                          ? 'border-indigo-500 bg-indigo-500/10'
+                          : 'border-slate-700 hover:border-indigo-500/60 bg-slate-900/60 hover:bg-slate-900'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-200">
+                          Click to browse or drop course PDF here
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Accepts selectable, scanned, or mixed PDFs
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 messages.map((msg, idx) => (
@@ -569,35 +812,10 @@ export default function StudentPortal() {
               {loading && (
                 <div className="flex gap-2 items-center text-xs text-indigo-400 animate-pulse p-2">
                   <Bot className="w-4 h-4 animate-spin" />
-                  <span>Searching knowledge repository & formatting {selectedMarks}-mark schema...</span>
+                  <span>Searching active document & formatting {selectedMarks}-mark schema...</span>
                 </div>
               )}
               <div ref={chatMessagesEndRef} />
-            </div>
-
-            {/* Quick Prompts */}
-            <div className="px-4 py-2 bg-slate-950/90 border-t border-slate-800 flex flex-wrap items-center gap-2">
-              <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-indigo-400" /> Quick Prompts:
-              </span>
-              <button
-                onClick={() => handleSendQuery("Explain Binary Search Tree deletion algorithm")}
-                className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-[11px] text-slate-200 border border-slate-700 transition-colors"
-              >
-                BST Deletion (Grounded)
-              </button>
-              <button
-                onClick={() => handleSendQuery("Explain Binary Search Tree insertion")}
-                className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-[11px] text-slate-200 border border-slate-700 transition-colors"
-              >
-                BST Insertion
-              </button>
-              <button
-                onClick={() => handleSendQuery("How do I bake a chocolate cake?")}
-                className="px-2.5 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 text-[11px] text-rose-300 transition-colors"
-              >
-                Off-Topic Query (Test Abstain)
-              </button>
             </div>
 
             {/* Input Bar */}
@@ -607,12 +825,17 @@ export default function StudentPortal() {
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
-                placeholder="Ask any question from your course syllabus..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                placeholder={
+                  activeDocumentId
+                    ? `Ask any question from ${activeDocument?.title || 'active document'}...`
+                    : "Upload a PDF first to ask grounded questions..."
+                }
+                disabled={!activeDocumentId || loading}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50 transition-colors"
               />
               <button
                 onClick={() => handleSendQuery()}
-                disabled={loading || (!inputQuery || !inputQuery.trim())}
+                disabled={!activeDocumentId || loading || !inputQuery.trim()}
                 className="p-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/30 transition-all duration-150 disabled:opacity-50 cursor-pointer"
                 title="Send Question"
               >
@@ -622,7 +845,7 @@ export default function StudentPortal() {
           </div>
         </div>
 
-        {/* Resizable Draggable Divider (Desktop Only in Split Mode) */}
+        {/* Resizable Draggable Divider */}
         {layoutMode === 'split' && (
           <div
             onMouseDown={handleMouseDown}
@@ -641,7 +864,6 @@ export default function StudentPortal() {
               </div>
             </div>
 
-            {/* Drag tooltip indicator */}
             {isDragging && (
               <div className="absolute top-4 bg-indigo-600 text-white text-[10px] font-mono px-2 py-1 rounded shadow-xl pointer-events-none whitespace-nowrap z-50">
                 Chat: {splitRatio}% | Doc: {100 - splitRatio}%
@@ -664,7 +886,6 @@ export default function StudentPortal() {
             isDragging ? 'transition-none select-none' : 'transition-[width] duration-150'
           } min-w-[280px] relative`}
         >
-          {/* Quick Header Banner to expand / toggle when in single view */}
           {layoutMode === 'pdf' && (
             <div className="mb-2 flex items-center justify-between px-4 py-2 bg-slate-900/90 border border-slate-800 rounded-xl text-xs">
               <span className="text-slate-400 font-medium">Document Fullscreen Mode</span>
@@ -679,10 +900,12 @@ export default function StudentPortal() {
           )}
 
           <PdfViewer
+            activeDocument={activeDocument}
             activeCitation={activeCitation}
             setActiveCitation={setActiveCitation}
             selectedPage={selectedPage}
             setSelectedPage={setSelectedPage}
+            onUploadClick={() => fileInputRef.current?.click()}
           />
         </div>
       </div>
