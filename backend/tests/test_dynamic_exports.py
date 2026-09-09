@@ -48,6 +48,37 @@ class TestDynamicEducatorExports(unittest.TestCase):
         self.assertIn("Context Switching", text)
         self.assertNotIn("Binary Search Trees", text)
 
+    def test_handout_uses_subtopic_paragraph_style_and_not_section_page_format(self):
+        """Ensure the PDF handout formats content as a sub-topic heading plus paragraph body instead of Section N (Page n)."""
+        if not pdf_generator.available:
+            self.skipTest("ReportLab is not installed")
+
+        doc = {
+            "title": "Operating Systems Scheduling",
+            "chunks": [
+                {"page": 1, "text": "Process Scheduling\nThe scheduler selects a ready process for CPU execution."},
+            ],
+        }
+
+        pdf_bytes = pdf_generator.generate_handout_pdf(doc)
+        self.assertIsInstance(pdf_bytes, bytes)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+
+        try:
+            import fitz
+            reader = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text = "\n".join(page.get_text() for page in reader)
+            reader.close()
+        except ImportError:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        self.assertIn("Sub-topic: Process Scheduling", text)
+        self.assertIn("The scheduler selects a ready process for CPU execution.", text)
+        self.assertNotIn("Section 1 (Page 1)", text)
+        self.assertNotIn("Section 1", text)
+
     def test_handout_large_multipage_document_no_table_overflow(self):
         """Verifies that large documents with 60+ chunks split across pages cleanly without table overflow."""
         if not pdf_generator.available:
@@ -77,7 +108,7 @@ class TestDynamicEducatorExports(unittest.TestCase):
         reader.close()
 
         self.assertIn("Advanced Distributed Systems", full_text)
-        self.assertIn("Section 60", full_text)
+        self.assertIn("Sub-topic: Section 60", full_text)
         self.assertIn("Paxos", full_text)
 
     def test_deep_document_analysis_for_full_slide_deck_and_ppt(self):

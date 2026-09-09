@@ -80,6 +80,35 @@ class StudyHandoutGenerator:
         text = str(value) if value is not None else ""
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+    @staticmethod
+    def _extract_subtopic_and_body(chunk_text: Any) -> tuple[str, str]:
+        """Return a clean sub-topic label and paragraph body for the handout.
+
+        A raw chunk can be a topic line with an explanatory paragraph below it,
+        or a legacy section label such as 'Section 60: Detailed topic'. We strip
+        the legacy section and page label from the heading so the rendered result
+        is a natural sub-topic title followed by the paragraph body.
+        """
+        raw_text = str(chunk_text or "")
+        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+        if not lines:
+            return "Topic", ""
+
+        topic = lines[0]
+        # Remove old section-like prefixes from the display heading.
+        topic = re.sub(r"^\s*Section\s+\d+\s*:\s*", "", topic, flags=re.IGNORECASE)
+        topic = re.sub(r"^\s*Topic\s*[:\-]\s*", "", topic, flags=re.IGNORECASE)
+
+        body_lines = lines[1:]
+        if body_lines:
+            body = " ".join(body_lines)
+        else:
+            # Preserve the same topic line as the explanatory paragraph when the
+            # note contains only the heading and no paragraph body.
+            body = ""
+
+        return topic, body
+
     def _generate_practice_questions(self, title: str, concepts: list, headings: list) -> Dict[int, List[str]]:
         """Generates marks-aligned 2, 5, and 10 mark practice questions."""
         safe_title = self._safe_text(title)
@@ -279,15 +308,23 @@ class StudyHandoutGenerator:
             story.append(Paragraph(clean_summary, summary_style))
             story.append(Spacer(1, 4))
 
-        # 3. Content Sections (chunks flow naturally through column 1 -> column 2 -> next page)
+        # 3. Content Sections (render as clean sub-topic headings with paragraph explanations)
         if chunks:
             story.append(create_section_header("Curriculum Content Sections"))
             story.append(Spacer(1, 3))
-            for index, chunk in enumerate(chunks):
-                page_info = f" (Page {chunk.get('page')})" if chunk.get("page") else ""
-                clean_chunk_text = self._safe_text(chunk.get("text", "")).replace("\n", "<br/>")
-                story.append(Paragraph(f"<b>Section {index + 1}{page_info}</b>", item_heading))
-                story.append(Paragraph(clean_chunk_text, body_style))
+            for chunk in chunks:
+                sub_topic, body_text = self._extract_subtopic_and_body(chunk.get("text", ""))
+                if not sub_topic:
+                    continue
+
+                safe_topic = self._safe_text(sub_topic)
+                safe_body = self._safe_text(body_text).replace("\n", "<br/>") if body_text else ""
+
+                story.append(Paragraph(f"<b>{safe_topic}</b>", item_heading))
+                if safe_body:
+                    story.append(Paragraph(safe_body, body_style))
+                else:
+                    story.append(Paragraph("", body_style))
                 story.append(Spacer(1, 2))
             story.append(Spacer(1, 4))
 
