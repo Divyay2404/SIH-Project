@@ -21,7 +21,11 @@ STOP_WORDS = {
     "themselves", "then", "there", "these", "they", "this", "those", "through",
     "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "were",
     "weren't", "what", "when", "where", "which", "while", "who", "whom", "why",
-    "with", "won't", "would", "you", "your", "yours", "yourself", "yourselves"
+    "with", "won't", "would", "you", "your", "yours", "yourself", "yourselves",
+    # Procedural and conversational query tokens
+    "work", "works", "working", "explain", "explains", "describe", "describes",
+    "define", "defines", "definition", "detail", "details", "give", "gives",
+    "tell", "show", "shows", "step", "steps", "state", "states", "overview", "please"
 }
 
 

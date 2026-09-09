@@ -193,6 +193,7 @@ async def ingest_document(file: UploadFile = File(...)) -> IngestResponse:
             "important_portions": analysis.get("important_portions", []),
             "slides": analysis.get("slides", []),
             "pages": pages_reconstructed,
+            "pdf_bytes": content,
         }
 
         pages_processed = analysis.get("page_count") or max((c.get("page", 0) for c in chunks), default=1)
@@ -250,6 +251,98 @@ async def get_document(document_id: str):
     }
 
 
+@router.get(
+    "/document/{document_id}/pdf",
+    summary="Retrieve ingested PDF document as binary stream for preview",
+    tags=["Ingestion"],
+    responses={
+        200: {"content": {"application/pdf": {}}, "description": "Binary PDF stream"},
+        404: {"model": ErrorResponse, "description": "Document or PDF binary not found."}
+    }
+)
+async def get_document_pdf(document_id: str):
+    """Streams original uploaded PDF bytes for in-browser rendering."""
+    document = _get_export_document(document_id)
+    pdf_bytes = document.get("pdf_bytes")
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="PDF binary data not found for this document.")
+    filename = document.get("filename", "document.pdf")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+
+@router.post(
+    "/demo/load",
+    response_model=IngestResponse,
+    summary="Load isolated BST demo curriculum data for demonstration purposes",
+    tags=["Demo"]
+)
+async def load_demo_data() -> IngestResponse:
+    """Loads isolated Binary Search Tree demo knowledge, slides, and diagnostics on demand."""
+    from app.demo.demo_data import (
+        DEMO_DOCUMENT_ID,
+        DEMO_FILENAME,
+        DEMO_TITLE,
+        DEMO_CHUNKS,
+        DEMO_SLIDES,
+    )
+    # 1. Seed into vector store
+    if not vector_store.has_document(DEMO_DOCUMENT_ID):
+        vector_store.add_chunks(DEMO_CHUNKS)
+
+    # 2. Activate demo diagnostics
+    learner_engine.activate_demo_mode()
+
+    # 3. Prepare demo document record
+    pages_reconstructed = _reconstruct_pages(DEMO_CHUNKS)
+    demo_doc_record = {
+        "document_id": DEMO_DOCUMENT_ID,
+        "title": DEMO_TITLE,
+        "chunks": DEMO_CHUNKS,
+        "filename": DEMO_FILENAME,
+        "summary": "Comprehensive B.Tech curriculum chapter covering Binary Search Tree properties, invariant preservation, insertion, 3-case deletion, and asymptotic complexity analysis.",
+        "sections": ["BST Definition & Properties", "BST Insertion Algorithm", "BST Deletion (3 Cases)", "Time & Space Complexity"],
+        "important_concepts": ["BST Invariant", "In-Order Successor", "Deletion Cases", "Time Complexity"],
+        "important_portions": [
+            {
+                "page": 3,
+                "lead_sentence": "BST Deletion Algorithm has 3 cases: Case 1 (Leaf Node): Remove directly.",
+                "snippet": "Case 3 (Two Children): Replace node value with its in-order successor (smallest node in right subtree) and recursively delete successor.",
+                "is_critical": True
+            }
+        ],
+        "slides": DEMO_SLIDES,
+        "pages": pages_reconstructed,
+    }
+
+    if pdf_generator.available:
+        try:
+            demo_doc_record["pdf_bytes"] = pdf_generator.generate_handout_pdf(demo_doc_record)
+        except Exception:
+            pass
+
+    document_exports[DEMO_DOCUMENT_ID] = demo_doc_record
+
+    return IngestResponse(
+        status="success",
+        document_id=DEMO_DOCUMENT_ID,
+        title=DEMO_TITLE,
+        filename=DEMO_FILENAME,
+        chunks_extracted=len(DEMO_CHUNKS),
+        pages_processed=4,
+        message="Demo BST curriculum dataset loaded successfully.",
+        indexing_confirmed=True,
+        summary=demo_doc_record["summary"],
+        important_concepts=demo_doc_record["important_concepts"],
+        sections=demo_doc_record["sections"],
+        important_portions=demo_doc_record["important_portions"],
+        slides=DEMO_SLIDES,
+        pages=pages_reconstructed
+    )
+
 
 @router.get(
     "/quiz",
@@ -257,19 +350,52 @@ async def get_document(document_id: str):
     summary="Fetch active diagnostic micro-quiz question",
     tags=["Diagnostics"]
 )
-async def get_diagnostic_quiz() -> QuizQuestionResponse:
-    """Fetches active diagnostic micro-quiz question."""
-    return QuizQuestionResponse(
-        question_id="q_bst_del_01",
-        topic="Binary Search Tree Deletion",
-        question_text="When deleting a BST node with two children, which node is substituted in its place to maintain the BST invariant?",
-        options=[
-            "In-Order Successor (Smallest key in right subtree)",
-            "Pre-Order Traversal Root Node",
-            "Right-most Leaf Node in Left Subtree",
-            "Any random child node"
-        ]
-    )
+async def get_diagnostic_quiz(document_id: Optional[str] = Query(None)) -> QuizQuestionResponse:
+    """Fetches diagnostic micro-quiz question dynamically scoped to the target document."""
+    from app.demo.demo_data import DEMO_DOCUMENT_ID, DEMO_QUIZ
+
+    # If scoped to an uploaded document
+    if document_id and document_id in document_exports and document_id != DEMO_DOCUMENT_ID:
+        doc = document_exports[document_id]
+        concepts = doc.get("important_concepts") or []
+        sections = doc.get("sections") or []
+        title = doc.get("title", "Active Document")
+        topic_name = concepts[0] if concepts else (sections[0] if sections else title)
+
+        return QuizQuestionResponse(
+            question_id=f"q_{document_id[:8]}_01",
+            topic=topic_name,
+            question_text=f"Which principle is central to understanding and analyzing {topic_name}?",
+            options=[
+                f"Preserving the core invariant and operational constraints of {topic_name}",
+                f"Arbitrary manipulation without verifying underlying {topic_name} state",
+                f"Bypassing deterministic execution rules in {topic_name}",
+                f"Ignoring boundary conditions and asymptotic complexity"
+            ],
+            is_empty=False
+        )
+
+    # If demo document is explicitly requested or demo mode is active
+    if document_id == DEMO_DOCUMENT_ID or (not document_id and getattr(learner_engine, "is_demo_mode", False)):
+        return QuizQuestionResponse(
+            question_id=DEMO_QUIZ["question_id"],
+            topic=DEMO_QUIZ["topic"],
+            question_text=DEMO_QUIZ["question_text"],
+            options=DEMO_QUIZ["options"],
+            is_empty=False
+        )
+
+    # If document_id was not provided, check if demo document is registered or return default BST quiz for test compatibility
+    if not document_id:
+        return QuizQuestionResponse(
+            question_id=DEMO_QUIZ["question_id"],
+            topic=DEMO_QUIZ["topic"],
+            question_text=DEMO_QUIZ["question_text"],
+            options=DEMO_QUIZ["options"],
+            is_empty=False
+        )
+
+    raise HTTPException(status_code=404, detail="Document not found for quiz generation.")
 
 
 @router.post(

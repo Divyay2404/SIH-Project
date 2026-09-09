@@ -7,7 +7,8 @@ import {
   ChevronRight,
   FileText,
   RefreshCw,
-  UploadCloud
+  UploadCloud,
+  Sparkles
 } from 'lucide-react';
 
 /**
@@ -22,7 +23,8 @@ export default function PdfViewer({
   setActiveCitation,
   selectedPage = 1,
   setSelectedPage,
-  onUploadClick
+  onUploadClick,
+  onLoadDemo
 }) {
   const [viewerState, setViewerState] = useState('ready'); // 'ready' | 'loading' | 'failed'
   const [showExtractedText, setShowExtractedText] = useState(false);
@@ -64,14 +66,22 @@ export default function PdfViewer({
         </div>
         <h3 className="text-base font-bold text-slate-100 mb-2">No study material selected</h3>
         <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
-          Upload a course PDF to inspect the original pages and ask grounded questions.
+          Upload any course notes, syllabus, or textbook PDF to inspect original pages and ask grounded questions.
         </p>
-        {onUploadClick && (
-          <button onClick={onUploadClick} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold">
-            <UploadCloud className="w-4 h-4" />
-            <span>Upload Course PDF</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {onUploadClick && (
+            <button onClick={onUploadClick} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all cursor-pointer">
+              <UploadCloud className="w-4 h-4" />
+              <span>Upload Course PDF</span>
+            </button>
+          )}
+          {onLoadDemo && (
+            <button onClick={onLoadDemo} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all cursor-pointer">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Load Sample BST Demo</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -92,7 +102,7 @@ export default function PdfViewer({
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-slate-200 truncate max-w-[220px]" title={activeDocument.filename}>{activeDocument.filename}</p>
-            <p className="text-[10px] text-slate-400">Page {selectedPage} of {totalPages} · {canUseNativePreview ? 'Original PDF' : 'Extracted text'}</p>
+            <p className="text-[10px] text-slate-400">Page {selectedPage} of {totalPages} · Canvas Render Engine · {canUseNativePreview ? 'Original PDF' : 'Extracted text'}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -105,7 +115,15 @@ export default function PdfViewer({
       {/* Citation badge */}
       {citationOnCurrentPage && activeCitation && (
         <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          <span><strong>Chat evidence on this page:</strong> {activeCitation.snippet}</span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-amber-300">Evidence:</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30 font-mono">
+                Citation Bbox [{activeCitation.bounding_box ? activeCitation.bounding_box.map(n => Math.round(n)).join(', ') : 'Active'}]
+              </span>
+            </div>
+            <p className="leading-relaxed">{activeCitation.snippet}</p>
+          </div>
           <button onClick={() => setActiveCitation?.(null)} className="shrink-0 text-amber-300 hover:text-white">Clear</button>
         </div>
       )}

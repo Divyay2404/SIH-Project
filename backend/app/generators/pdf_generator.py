@@ -99,9 +99,15 @@ class StudyHandoutGenerator:
         topic = re.sub(r"^\s*\d+[\.\)]\s*", "", topic)
         topic = re.sub(r"^\s*[-•]\s*", "", topic)
 
-        # Remove old section-like prefixes from the display heading.
-        topic = re.sub(r"^\s*Section\s+\d+\s*:\s*", "", topic, flags=re.IGNORECASE)
-        topic = re.sub(r"^\s*Topic\s*[:\-]\s*", "", topic, flags=re.IGNORECASE)
+        # Check if line begins with "Section N:"
+        sec_match = re.match(r"^\s*(Section\s+\d+)\s*:\s*(.*)$", topic, flags=re.IGNORECASE)
+        if sec_match:
+            topic = sec_match.group(1)
+            rest = sec_match.group(2).strip()
+            if rest:
+                body_lines.insert(0, rest)
+        else:
+            topic = re.sub(r"^\s*Topic\s*[:\-]\s*", "", topic, flags=re.IGNORECASE)
 
         # Trim remaining empty lines and join explanation paragraphs.
         body_lines = [line for line in body_lines if line.strip()]
@@ -319,7 +325,7 @@ class StudyHandoutGenerator:
                 safe_topic = self._safe_text(sub_topic)
                 safe_body = self._safe_text(body_text).replace("\n", "<br/>") if body_text else ""
 
-                story.append(Paragraph(f"<b>{safe_topic}</b>", item_heading))
+                story.append(Paragraph(f"<b>Sub-topic: {safe_topic}</b>", item_heading))
                 if safe_body:
                     story.append(Paragraph(safe_body, body_style))
                 else:

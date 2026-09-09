@@ -29,13 +29,31 @@ import PdfViewer from './PdfViewer';
 import DiagnosticQuiz from './DiagnosticQuiz';
 import { apiUrl } from '../../config/api';
 
-export default function StudentPortal() {
+export default function StudentPortal({
+  activeDocument: propActiveDoc,
+  setActiveDocument: propSetActiveDoc,
+  availableDocuments: propAvailDocs,
+  setAvailableDocuments: propSetAvailDocs
+}) {
   const [selectedMarks, setSelectedMarks] = useState(5);
   const [selectedPage, setSelectedPage] = useState(1);
   const [activeCitation, setActiveCitation] = useState(null);
-  const [activeDocumentId, setActiveDocumentId] = useState(null);
-  const [activeDocument, setActiveDocument] = useState(null);
-  const [availableDocuments, setAvailableDocuments] = useState([]);
+  const [localActiveDocument, setLocalActiveDocument] = useState(null);
+  const [localAvailableDocuments, setLocalAvailableDocuments] = useState([]);
+
+  const activeDocument = propActiveDoc !== undefined ? propActiveDoc : localActiveDocument;
+  const setActiveDocument = propSetActiveDoc || setLocalActiveDocument;
+  const availableDocuments = propAvailDocs !== undefined ? propAvailDocs : localAvailableDocuments;
+  const setAvailableDocuments = propSetAvailDocs || setLocalAvailableDocuments;
+
+  const [activeDocumentId, setActiveDocumentId] = useState(activeDocument?.document_id || null);
+
+  useEffect(() => {
+    if (activeDocument?.document_id && activeDocument.document_id !== activeDocumentId) {
+      setActiveDocumentId(activeDocument.document_id);
+    }
+  }, [activeDocument?.document_id, activeDocumentId]);
+
   const [inputQuery, setInputQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -209,7 +227,8 @@ export default function StudentPortal() {
         summary: data.summary || '',
         important_concepts: data.important_concepts || [],
         sections: data.sections || [],
-        pages: data.pages || []
+        pages: data.pages || [],
+        sourceUrl: URL.createObjectURL(file)
       };
 
       setActiveDocument(newDoc);
@@ -254,7 +273,8 @@ export default function StudentPortal() {
           summary: data.summary,
           sections: data.sections,
           important_concepts: data.important_concepts,
-          pages: data.pages || []
+          pages: data.pages || [],
+          sourceUrl: apiUrl(`/api/document/${encodeURIComponent(data.document_id)}/pdf`)
         };
         setActiveDocument(switchedDoc);
         setActiveDocumentId(data.document_id);
@@ -274,6 +294,52 @@ export default function StudentPortal() {
       console.error('Failed to load document metadata:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load Isolated Sample BST Demo
+  const handleLoadDemo = async () => {
+    setUploading(true);
+    setUploadError(null);
+    setUploadPhase('Loading sample Binary Search Tree demo module...');
+    try {
+      const res = await fetch(apiUrl('/api/demo/load'), { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Demo load failed with HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const demoDoc = {
+        document_id: data.document_id,
+        title: data.title,
+        filename: data.filename,
+        pages_count: data.pages_processed || 4,
+        chunks_count: data.chunks_extracted || 4,
+        indexing_confirmed: true,
+        summary: data.summary,
+        important_concepts: data.important_concepts || [],
+        sections: data.sections || [],
+        pages: data.pages || [],
+        sourceUrl: apiUrl(`/api/document/${encodeURIComponent(data.document_id)}/pdf`)
+      };
+      setActiveDocument(demoDoc);
+      setActiveDocumentId(data.document_id);
+      setSelectedPage(1);
+      setActiveCitation(null);
+      setMessages([
+        {
+          sender: 'bot',
+          marks: selectedMarks,
+          abstain: false,
+          text: `🌲 **Sample BST Demo Loaded**: **${demoDoc.title}** (${demoDoc.filename})\n\n• **Pages Processed**: ${demoDoc.pages_count}\n• **Demo Chunks**: 4 BST textbook sections indexed\n\nYou can now ask questions about Binary Search Tree properties, 3-case deletion, or asymptotic bounds!`,
+          citation: null
+        }
+      ]);
+      fetchDocuments();
+    } catch (err) {
+      setUploadError(err.message || 'Failed to load demo data.');
+    } finally {
+      setUploading(false);
+      setUploadPhase('');
     }
   };
 
@@ -709,38 +775,51 @@ export default function StudentPortal() {
                   </p>
 
                   {!activeDocumentId && (
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setIsDraggingFile(true);
-                      }}
-                      onDragLeave={() => setIsDraggingFile(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDraggingFile(false);
-                        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                          handleFileUpload(e.dataTransfer.files[0]);
-                        }
-                      }}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`mt-6 w-full max-w-sm p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 ${
-                        isDraggingFile
-                          ? 'border-indigo-500 bg-indigo-500/10'
-                          : 'border-slate-700 hover:border-indigo-500/60 bg-slate-900/60 hover:bg-slate-900'
-                      }`}
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                        <UploadCloud className="w-5 h-5" />
+                    <>
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(true);
+                        }}
+                        onDragLeave={() => setIsDraggingFile(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(false);
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            handleFileUpload(e.dataTransfer.files[0]);
+                          }
+                        }}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`mt-6 w-full max-w-sm p-6 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 ${
+                          isDraggingFile
+                            ? 'border-indigo-500 bg-indigo-500/10'
+                            : 'border-slate-700 hover:border-indigo-500/60 bg-slate-900/60 hover:bg-slate-900'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                          <UploadCloud className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-200">
+                            Click to browse or drop course PDF here
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Accepts selectable, scanned, or mixed PDFs
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-200">
-                          Click to browse or drop course PDF here
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Accepts selectable, scanned, or mixed PDFs
-                        </p>
+
+                      <div className="flex items-center gap-2 mt-4">
+                        <span className="text-[11px] text-slate-500">or</span>
+                        <button
+                          onClick={handleLoadDemo}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Load Sample BST Demo</span>
+                        </button>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               ) : (
@@ -906,12 +985,19 @@ export default function StudentPortal() {
             selectedPage={selectedPage}
             setSelectedPage={setSelectedPage}
             onUploadClick={() => fileInputRef.current?.click()}
+            onLoadDemo={handleLoadDemo}
           />
         </div>
       </div>
 
       {/* Diagnostic Quiz Modal */}
-      <DiagnosticQuiz isOpen={isQuizOpen} onClose={() => setIsQuizOpen(false)} />
+      <DiagnosticQuiz
+        isOpen={isQuizOpen}
+        onClose={() => setIsQuizOpen(false)}
+        activeDocument={activeDocument}
+        onLoadDemo={handleLoadDemo}
+        onUploadClick={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 }
