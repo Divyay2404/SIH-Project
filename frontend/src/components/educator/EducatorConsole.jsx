@@ -221,23 +221,130 @@ function generateSampleSlideDeck(topicTitle = 'Binary Search Trees & Structural 
   ];
 }
 
-export default function EducatorConsole() {
+export default function EducatorConsole({
+  activeDocument: propActiveDoc,
+  setActiveDocument: propSetActiveDoc,
+  availableDocuments: propAvailDocs,
+  setAvailableDocuments: propSetAvailDocs
+}) {
   // Backend Connectivity State
   const [backendStatus, setBackendStatus] = useState('checking'); // 'connected' | 'unavailable' | 'checking'
   const [backendInfo, setBackendInfo] = useState(null);
 
   // Upload & Document State
-  const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState(() => {
+    if (propActiveDoc) {
+      return {
+        name: propActiveDoc.filename,
+        size: `${propActiveDoc.chunks_count || 0} chunks`,
+        title: propActiveDoc.title,
+        chunksExtracted: propActiveDoc.chunks_count || 0,
+        pagesProcessed: propActiveDoc.pages_count || 1,
+        documentId: propActiveDoc.document_id,
+        summary: propActiveDoc.summary,
+        importantConcepts: propActiveDoc.important_concepts,
+        sections: propActiveDoc.sections,
+        importantPortions: propActiveDoc.important_portions,
+        indexingConfirmed: propActiveDoc.indexing_confirmed
+      };
+    }
+    return null;
+  });
   const [uploading, setUploading] = useState(false);
   const [uploadPhase, setUploadPhase] = useState('');
   const [dragActive, setDragActive] = useState(false);
-  const [isUploadedDocument, setIsUploadedDocument] = useState(false);
+  const [isUploadedDocument, setIsUploadedDocument] = useState(Boolean(propActiveDoc));
 
   // Slide Deck State
-  const [slides, setSlides] = useState(() => generateSampleSlideDeck());
+  const [slides, setSlides] = useState(() => {
+    if (propActiveDoc?.slides && propActiveDoc.slides.length > 0) {
+      return propActiveDoc.slides;
+    }
+    return [];
+  });
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [editorTab, setEditorTab] = useState('content'); // 'content' | 'notes'
   const [previewMode, setPreviewMode] = useState('split'); // 'split' | 'presentation'
+
+  // Sync with propActiveDoc changes
+  useEffect(() => {
+    if (propActiveDoc) {
+      setUploadStatus({
+        name: propActiveDoc.filename,
+        size: `${propActiveDoc.chunks_count || 0} chunks`,
+        title: propActiveDoc.title,
+        chunksExtracted: propActiveDoc.chunks_count || 0,
+        pagesProcessed: propActiveDoc.pages_count || 1,
+        documentId: propActiveDoc.document_id,
+        summary: propActiveDoc.summary,
+        importantConcepts: propActiveDoc.important_concepts,
+        sections: propActiveDoc.sections,
+        importantPortions: propActiveDoc.important_portions,
+        indexingConfirmed: propActiveDoc.indexing_confirmed
+      });
+      setIsUploadedDocument(true);
+      if (propActiveDoc.slides && propActiveDoc.slides.length > 0) {
+        setSlides(propActiveDoc.slides);
+      }
+    }
+  }, [propActiveDoc?.document_id]);
+
+  // Load Isolated Sample BST Demo
+  const handleLoadDemo = async () => {
+    setUploading(true);
+    setUploadPhase('Loading sample Binary Search Tree demo lecture...');
+    try {
+      const res = await fetch(apiUrl('/api/demo/load'), { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Demo load failed with HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const demoDoc = {
+        document_id: data.document_id,
+        title: data.title,
+        filename: data.filename,
+        pages_count: data.pages_processed || 4,
+        chunks_count: data.chunks_extracted || 4,
+        indexing_confirmed: true,
+        summary: data.summary,
+        important_concepts: data.important_concepts || [],
+        sections: data.sections || [],
+        important_portions: data.important_portions || [],
+        slides: data.slides || generateSampleSlideDeck(),
+        pages: data.pages || [],
+        sourceUrl: apiUrl(`/api/document/${encodeURIComponent(data.document_id)}/pdf`)
+      };
+      setUploadStatus({
+        name: demoDoc.filename,
+        size: `${demoDoc.chunks_count} chunks`,
+        title: demoDoc.title,
+        chunksExtracted: demoDoc.chunks_count,
+        pagesProcessed: demoDoc.pages_count,
+        documentId: demoDoc.document_id,
+        summary: demoDoc.summary,
+        importantConcepts: demoDoc.important_concepts,
+        sections: demoDoc.sections,
+        importantPortions: demoDoc.important_portions,
+        indexingConfirmed: true
+      });
+      setSlides(demoDoc.slides);
+      setActiveSlideIndex(0);
+      setIsUploadedDocument(false);
+      propSetActiveDoc?.(demoDoc);
+      setNotification({
+        type: 'success',
+        message: 'Sample BST demo lesson loaded with 10 structured lecture slides and speaker scripts.'
+      });
+    } catch (err) {
+      setNotification({
+        type: 'error',
+        message: err.message || 'Failed to load demo data.'
+      });
+    } finally {
+      setUploading(false);
+      setUploadPhase('');
+    }
+  };
 
   // Bullet point input state
   const [newBulletText, setNewBulletText] = useState('');
@@ -414,6 +521,23 @@ export default function EducatorConsole() {
       }
       setIsUploadedDocument(true);
       setActiveSlideIndex(0);
+
+      const newDoc = {
+        document_id: payload.document_id,
+        title: documentTitle,
+        filename: file.name,
+        pages_count: pagesProcessed,
+        chunks_count: chunksExtracted,
+        indexing_confirmed: isIndexed,
+        summary: payload.summary,
+        important_concepts: payload.important_concepts || [],
+        sections: payload.sections || [],
+        important_portions: payload.important_portions || [],
+        slides: payload.slides || [],
+        pages: payload.pages || [],
+        sourceUrl: URL.createObjectURL(file)
+      };
+      propSetActiveDoc?.(newDoc);
 
       setNotification({
         type: 'success',
@@ -849,9 +973,22 @@ export default function EducatorConsole() {
             PyMuPDF extracts section headings, theoretical axioms, and bounding boxes. Scanned notes are processed via OCR fallback.
           </p>
 
-          <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white hover:border-indigo-500/40 transition-colors">
-            <Upload className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Browse Device Files</span>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white hover:border-indigo-500/40 transition-colors">
+              <Upload className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Browse Device Files</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLoadDemo();
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Load Sample BST Lesson</span>
+            </button>
           </div>
 
           {/* Ingestion Progress Overlay */}
@@ -1062,11 +1199,42 @@ export default function EducatorConsole() {
           </div>
         </div>
 
-        {/* Studio Workspace: Two Columns */}
-        <div className={`grid gap-6 ${previewMode === 'split' ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
-          {/* Left Panel: Slide Outline Navigator */}
-          {previewMode === 'split' && (
-            <div className="lg:col-span-4 space-y-3">
+        {/* Studio Workspace */}
+        {slides.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+              <Presentation className="w-7 h-7" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white">No Lecture Presentation Deck Loaded</h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                Upload a curriculum textbook chapter or course PDF to synthesize an editable 10-slide presentation with embedded teacher talking points, or load the sample BST lesson.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition-colors cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Course PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleLoadDemo}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Load Sample BST Lesson</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={`grid gap-6 ${previewMode === 'split' ? 'grid-cols-1 lg:grid-cols-12' : 'grid-cols-1'}`}>
+            {/* Left Panel: Slide Outline Navigator */}
+            {previewMode === 'split' && (
+              <div className="lg:col-span-4 space-y-3">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-indigo-400" />
@@ -1469,10 +1637,15 @@ export default function EducatorConsole() {
             </div>
           </div>
         </div>
+      )}
       </div>
 
       {/* Cohort Class Mastery & Error Breakdown Heatmap */}
-      <WeaknessHeatmap />
+      <WeaknessHeatmap
+        initialData={uploadStatus?.documentId === 'doc_bst_demo_01' ? undefined : { overall_readiness: 0, topic_heatmap: [], class_error_distribution: {}, is_empty: true }}
+        onLoadDemo={handleLoadDemo}
+        onUploadClick={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 }

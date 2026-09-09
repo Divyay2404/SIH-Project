@@ -5,6 +5,8 @@ import EducatorConsole from './components/educator/EducatorConsole';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('student');
+  const [activeDocument, setActiveDocument] = useState(null);
+  const [availableDocuments, setAvailableDocuments] = useState([]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
@@ -14,9 +16,19 @@ export default function App() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-6 pb-12 flex-1 w-full">
         {activeTab === 'student' ? (
-          <StudentPortal />
+          <StudentPortal
+            activeDocument={activeDocument}
+            setActiveDocument={setActiveDocument}
+            availableDocuments={availableDocuments}
+            setAvailableDocuments={setAvailableDocuments}
+          />
         ) : (
-          <EducatorConsole />
+          <EducatorConsole
+            activeDocument={activeDocument}
+            setActiveDocument={setActiveDocument}
+            availableDocuments={availableDocuments}
+            setAvailableDocuments={setAvailableDocuments}
+          />
         )}
       </main>
 

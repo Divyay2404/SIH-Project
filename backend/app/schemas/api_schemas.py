@@ -130,6 +130,7 @@ class QuizQuestionResponse(DictAccessibleBaseModel):
     topic: str = Field(..., description="Topic curriculum area", examples=["Binary Search Tree Deletion"])
     question_text: str = Field(..., description="Question prompt text", examples=["When deleting a BST node with two children, which node is substituted in its place to maintain the BST invariant?"])
     options: List[str] = Field(..., description="Multiple choice options list", examples=[["In-Order Successor", "Pre-Order Traversal Root Node", "Right-most Leaf Node in Left Subtree", "Any random child node"]])
+    is_empty: Optional[bool] = Field(default=False, description="Whether this represents a guided empty state when no document is active")
 
 
 class QuizSubmissionRequest(DictAccessibleBaseModel):
@@ -206,6 +207,7 @@ class ReadinessResponse(DictAccessibleBaseModel):
         description="Error distribution across error taxonomy types",
         examples=[{"Conceptual Gap": 45, "Process Mistake": 25, "Terminology Confusion": 20, "Careless Error": 10}]
     )
+    is_empty: Optional[bool] = Field(default=False, description="Whether the readiness state is empty")
 
 
 # ==========================================

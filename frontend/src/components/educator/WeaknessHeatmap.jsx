@@ -15,7 +15,9 @@ import {
   X,
   Target,
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  UploadCloud,
+  Sparkles
 } from 'lucide-react';
 import { apiUrl } from '../../config/api';
 
@@ -193,8 +195,17 @@ export function normalizeErrorType(errorType = '') {
 /**
  * Main WeaknessHeatmap & Concept Mastery Component
  */
-export default function WeaknessHeatmap({ initialData = null }) {
-  const [heatmapData, setHeatmapData] = useState(() => initialData || DEFAULT_FALLBACK_DATA);
+export default function WeaknessHeatmap({
+  initialData = DEFAULT_FALLBACK_DATA,
+  onLoadDemo = null,
+  onUploadClick = null
+}) {
+  const [heatmapData, setHeatmapData] = useState(() => {
+    if (initialData !== undefined && initialData !== null) {
+      return initialData;
+    }
+    return DEFAULT_FALLBACK_DATA;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTaxonomy, setSelectedTaxonomy] = useState('ALL');
@@ -216,18 +227,26 @@ export default function WeaknessHeatmap({ initialData = null }) {
       }
       const data = await res.json();
       if (data && typeof data === 'object') {
-        setHeatmapData(prev => ({
-          overall_readiness: typeof data.overall_readiness === 'number' ? data.overall_readiness : prev.overall_readiness,
-          topic_heatmap: Array.isArray(data.topic_heatmap) && data.topic_heatmap.length > 0
-            ? data.topic_heatmap
-            : prev.topic_heatmap,
-          class_error_distribution: data.class_error_distribution && typeof data.class_error_distribution === 'object'
-            ? data.class_error_distribution
-            : prev.class_error_distribution
-        }));
+        if (data.is_empty || !Array.isArray(data.topic_heatmap) || data.topic_heatmap.length === 0) {
+          setHeatmapData({
+            overall_readiness: 0,
+            topic_heatmap: [],
+            class_error_distribution: {},
+            is_empty: true
+          });
+        } else {
+          setHeatmapData({
+            overall_readiness: typeof data.overall_readiness === 'number' ? data.overall_readiness : 0,
+            topic_heatmap: data.topic_heatmap,
+            class_error_distribution: data.class_error_distribution && typeof data.class_error_distribution === 'object'
+              ? data.class_error_distribution
+              : {},
+            is_empty: false
+          });
+        }
       }
     } catch (err) {
-      console.warn('WeaknessHeatmap: Falling back to local diagnostic cache due to fetch error:', err.message);
+      console.warn('WeaknessHeatmap: Error fetching diagnostic analytics:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -700,8 +719,43 @@ export default function WeaknessHeatmap({ initialData = null }) {
           </div>
         )}
 
-        {/* Empty State */}
-        {!loading && filteredTopics.length === 0 && (
+        {/* Empty State: No topics yet */}
+        {!loading && rawTopics.length === 0 && (
+          <div className="p-8 text-center rounded-2xl bg-slate-950/60 border border-slate-800 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto text-indigo-400">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-200">No Concepts Matching Selected Filter</h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
+                No Diagnostic Cohort Data Available. Student assessment attempts and concept error distributions will automatically appear here once diagnostic quizzes are taken for the active curriculum.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+              {onUploadClick && (
+                <button
+                  onClick={onUploadClick}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>Upload Curriculum PDF</span>
+                </button>
+              )}
+              {onLoadDemo && (
+                <button
+                  onClick={onLoadDemo}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Load Sample BST Demo</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State: Filters match 0 */}
+        {!loading && rawTopics.length > 0 && filteredTopics.length === 0 && (
           <div className="p-8 text-center rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
             <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-400">
               <SlidersHorizontal className="w-5 h-5" />
@@ -715,7 +769,7 @@ export default function WeaknessHeatmap({ initialData = null }) {
                 setSelectedTaxonomy('ALL');
                 setSearchQuery('');
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors cursor-pointer"
             >
               <span>Reset Filters</span>
             </button>
