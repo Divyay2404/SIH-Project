@@ -18,12 +18,12 @@ To prevent **Git merge conflicts** when multiple team members add, update, or re
 
 | Role | Role Title | Primary Scope | Assigned Backlog Issues |
 |---|---|---|---|
-| **Divyay** | RAG & Integration Lead | Core RAG pipeline, marks-aware prompts, evidence-or-abstain gate | #1, #2, #14 |
-| **Yatharth** | Document Intelligence | PyMuPDF parsing, bounding box coordinates, layout cleaning | #3, #4 |
-| **Priya** | Lead Backend Architect | FastAPI REST routing, SQLite learner state, async endpoints | #5, #6 |
-| **Deepanshu** | Student Portal Dev | React split-screen chat console, PDF highlight overlay | #7, #8 |
-| **Ayush** | Educator Console Dev | Teacher presentation hub, class weakness heatmap | #9, #10 |
-| **Dev** | Output & QA Engineer | `python-pptx` deck builder, `ReportLab` handouts, stress tests | #11, #12, #13 |
+| **Divyay** | RAG & Integration Lead | Core RAG pipeline, marks-aware prompts, evidence-or-abstain gate |  |
+| **Deepanshu** | Document Intelligence | PyMuPDF parsing, bounding box coordinates, layout cleaning |  |
+| **Yatharth** | Lead Backend Architect | FastAPI REST routing, SQLite learner state, async endpoints | |
+| **Dev** | Student Portal Dev | React split-screen chat console, PDF highlight overlay |  |
+| **Ayush** | Educator Console Dev | Teacher presentation hub, class weakness heatmap |  |
+| **Priya** | Output & QA Engineer | `python-pptx` deck builder, `ReportLab` handouts, stress tests |  |
 
 ---
 
