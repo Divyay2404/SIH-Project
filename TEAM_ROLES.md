@@ -9,8 +9,8 @@ This document defines the 6 team member role responsibilities, shared code contr
 
 ```
                         ┌───────────────────────────────────────────────┐
-                        │        Divyay (RAG & Integration Lead)           │
-                        │ Architecture Contracts, RAG, Prompts, Gating │
+                        │        Divyay (RAG & Integration Lead)        │
+                        │ Architecture Contracts, RAG, Prompts, Gating  │
                         └───────────────────────┬───────────────────────┘
                                                 │
        ┌────────────────────────┬───────────────┴───────────────┬────────────────────────┐
