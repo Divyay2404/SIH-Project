@@ -9,46 +9,46 @@ This document defines the 6 team member role responsibilities, shared code contr
 
 ```
                         ┌───────────────────────────────────────────────┐
-                        │        You (RAG & Integration Lead)           │
+                        │        Divyay (RAG & Integration Lead)           │
                         │ Architecture Contracts, RAG, Prompts, Gating │
                         └───────────────────────┬───────────────────────┘
                                                 │
        ┌────────────────────────┬───────────────┴───────────────┬────────────────────────┐
        ▼                        ▼                               ▼                        ▼
  ┌───────────┐            ┌───────────┐                   ┌───────────┐            ┌───────────┐
- │Teammate 1 │            │Teammate 2 │                   │Teammate 3 │            │Teammate 4 │
+ │Deepanshu  │            │ Yatharth  │                   │   Dev     │            │   Ayush   │
  │ Doc Intel │            │  Backend  │                   │ Student UI│            │Educator UI│
  └─────┬─────┘            └─────┬─────┘                   └─────┬─────┘            └─────┬─────┘
        │                        │                               │                        │
        └────────────────────────┴───────────────┬───────────────┴────────────────────────┘
                                                 ▼
                                          ┌───────────┐
-                                         │Teammate 5 │
+                                         │   Priya   │
                                          │  QA & PPT │
                                          └───────────┘
 ```
 
-### Role 0: RAG & Integration Lead (You)
+### Role 0: RAG & Integration Lead (Divyay)
 - **Primary Deliverables**: Prompt templates for 2, 5, 10 marks, Chroma vector DB schema, evidence-or-abstain gate, end-to-end RAG workflow.
 - **Code Scope**: `backend/app/rag/qa_engine.py`, `backend/app/rag/vector_store.py`.
 
-### Role 1: Document Intelligence Specialist (Teammate 1)
+### Role 1: Document Intelligence Specialist (Deepanshu)
 - **Primary Deliverables**: PyMuPDF coordinate & bounding box extractor, text layout cleaner, OCR fallback.
 - **Code Scope**: `backend/app/ingestion/pdf_parser.py`.
 
-### Role 2: Lead Systems Backend Architect (Teammate 2)
+### Role 2: Lead Systems Backend Architect (Yatharth)
 - **Primary Deliverables**: FastAPI async routes, SQLite learner state DB schema, error taxonomy classifier.
 - **Code Scope**: `backend/app/main.py`, `backend/app/api/routes.py`, `backend/app/diagnostics/learner_state.py`.
 
-### Role 3: Student Portal Developer (Teammate 3)
+### Role 3: Student Portal Developer (Dev)
 - **Primary Deliverables**: React split-screen chat interface, marks selector UI, dynamic SVG/Canvas PDF bounding box highlight renderer.
 - **Code Scope**: `frontend/src/components/student/*`.
 
-### Role 4: Educator Console Developer (Teammate 4)
+### Role 4: Educator Console Developer (Ayush)
 - **Primary Deliverables**: Teacher upload panel, PPT generator controller UI, class weakness heatmap widgets.
 - **Code Scope**: `frontend/src/components/educator/*`.
 
-### Role 5: Output & QA Engineer (Teammate 5)
+### Role 5: Output & QA Engineer (Priya)
 - **Primary Deliverables**: `python-pptx` presentation builder, `ReportLab` study handout PDF exporter, stress testing scripts.
 - **Code Scope**: `backend/app/generators/*`, `backend/tests/*`.
 
